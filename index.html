@@ -1,0 +1,1252 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BankApps — Rekod Bank</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
+    body { font-family: 'Inter', sans-serif; }
+    .chart-container    { position: relative; height: 200px; width: 100%; }
+    .chart-container-lg { position: relative; height: 250px; width: 100%; }
+    .loading-overlay    { background: rgba(255,255,255,0.85); display: none; }
+
+    .toast {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 9999;
+      padding: 16px 24px;
+      border-radius: 16px;
+      font-weight: bold;
+      font-size: 14px;
+      color: white;
+      box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+      animation: slideIn 0.3s ease-out;
+      max-width: 400px;
+    }
+    .toast.success { background: #10b981; }
+    .toast.error { background: #ef4444; }
+    .toast.info { background: #3b82f6; }
+
+    @keyframes slideIn {
+      from { transform: translateX(400px); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+    @keyframes slideOut {
+      from { transform: translateX(0); opacity: 1; }
+      to { transform: translateX(400px); opacity: 0; }
+    }
+    .toast.hide { animation: slideOut 0.3s ease-out forwards; }
+
+    .summary-card:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,0,0,0.08); }
+
+    .nav-active-sum   { color: #6366f1; border-top: 3px solid #6366f1; background: #eef2ff; }
+    .nav-active-bank1 { color: #f59e0b; border-top: 3px solid #f59e0b; background: #fffbeb; }
+    .nav-active-bank2 { color: #0d9488; border-top: 3px solid #0d9488; background: #f0fdfa; }
+    .nav-active-bulk  { color: #64748b; border-top: 3px solid #64748b; background: #f8fafc; }
+    .nav-active-chart { color: #8b5cf6; border-top: 3px solid #8b5cf6; background: #f5f3ff; }
+
+    .balance-positive { color: #059669; }
+    .balance-negative { color: #ef4444; }
+    .tx-masuk  { color: #059669; font-weight: 700; }
+    .tx-keluar { color: #ef4444; font-weight: 700; }
+    .tx-transfer { color: #6366f1; font-weight: 700; }
+
+    .bar-fill {
+      transition: width 0.5s ease-out;
+      border-radius: 8px;
+      height: 100%;
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-700 pb-24">
+
+  <div id="loader" class="fixed inset-0 z-50 loading-overlay flex items-center justify-center">
+    <div class="animate-spin rounded-full h-12 w-12 border-t-4 border-indigo-600"></div>
+  </div>
+
+  <!-- NAVIGATION -->
+  <nav class="fixed bottom-0 inset-x-0 bg-white border-t z-40 flex justify-around items-center h-16 shadow-lg">
+    <button onclick="switchTab('summary')" id="nav-summary" class="flex flex-col items-center gap-1 w-full h-full justify-center nav-active-sum">
+      <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+      <span class="text-[10px] font-bold uppercase">Ringkasan</span>
+    </button>
+    <button onclick="switchTab('bank1')" id="nav-bank1" class="flex flex-col items-center gap-1 w-full h-full justify-center text-slate-400">
+      <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
+      <span class="text-[10px] font-bold uppercase" id="nav-bank1-label">Maybank</span>
+    </button>
+    <button onclick="switchTab('bank2')" id="nav-bank2" class="flex flex-col items-center gap-1 w-full h-full justify-center text-slate-400">
+      <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
+      <span class="text-[10px] font-bold uppercase" id="nav-bank2-label">Bank Islam</span>
+    </button>
+    <button onclick="switchTab('bulk')" id="nav-bulk" class="flex flex-col items-center gap-1 w-full h-full justify-center text-slate-400">
+      <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+      <span class="text-[10px] font-bold uppercase">Pukal</span>
+    </button>
+    <button onclick="switchTab('chart')" id="nav-chart" class="flex flex-col items-center gap-1 w-full h-full justify-center text-slate-400">
+      <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+      <span class="text-[10px] font-bold uppercase">Carta</span>
+    </button>
+  </nav>
+
+  <!-- ============================================================
+     PAGE: RINGKASAN
+  ============================================================ -->
+  <div id="page-summary">
+    <header class="bg-white border-b sticky top-0 z-20 shadow-sm px-6 py-4">
+      <div class="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
+        <div>
+          <h1 class="text-xl font-black text-indigo-600 tracking-tighter uppercase">Ringkasan Bank</h1>
+          <p class="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Wang Masuk · Keluar · Baki</p>
+        </div>
+        <div class="flex flex-wrap justify-center gap-2">
+          <select id="sumFilterMonth" onchange="debouncedLoadAllData()" class="rounded-xl border-slate-200 text-xs font-bold p-2 bg-indigo-50 outline-none">
+            <option value="">Semua Bulan</option>
+            <option value="1">Jan</option><option value="2">Feb</option><option value="3">Mac</option>
+            <option value="4">Apr</option><option value="5">Mei</option><option value="6">Jun</option>
+            <option value="7">Jul</option><option value="8">Ogos</option><option value="9">Sep</option>
+            <option value="10">Okt</option><option value="11">Nov</option><option value="12">Dis</option>
+          </select>
+          <select id="sumFilterYear" onchange="debouncedLoadAllData()" class="rounded-xl border-slate-200 text-xs font-bold p-2 bg-slate-50 outline-none">
+            <option value="2025">2025</option><option value="2026" selected>2026</option><option value="2027">2027</option>
+            <option value="2028">2028</option><option value="2029">2029</option><option value="2030">2030</option><option value="2031">2031</option>
+          </select>
+        </div>
+      </div>
+    </header>
+    <main class="max-w-7xl mx-auto px-4 py-6 space-y-6">
+      <div id="sumBankCards" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+          <h3 class="text-[9px] font-black text-slate-400 uppercase tracking-[0.3em] mb-4">Masuk vs Keluar (Bulanan)</h3>
+          <div class="chart-container-lg"><canvas id="sumBarChart"></canvas></div>
+        </div>
+        <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+          <h3 class="text-[9px] font-black text-slate-400 uppercase tracking-[0.3em] mb-4">Pecahan Kategori Keluar</h3>
+          <div class="chart-container"><canvas id="sumPieChart"></canvas></div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- ============================================================
+     PAGE: BANK DETAIL (Maybank & Bank Islam)
+  ============================================================ -->
+  <div id="page-bank" class="hidden">
+    <header class="bg-white border-b sticky top-0 z-20 shadow-sm px-6 py-4">
+      <div class="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
+        <div>
+          <h1 id="bankPageTitle" class="text-xl font-black tracking-tighter uppercase"></h1>
+        </div>
+        <div class="flex flex-wrap justify-center gap-2">
+          <input type="date" id="bankFilterDate" onchange="loadBankData()" class="rounded-xl border-slate-200 text-xs font-bold p-2 bg-amber-50 outline-none" title="Tapis Hari">
+          <select id="bankFilterMonth" onchange="clearBankDate(); debouncedLoadBankData();" class="rounded-xl border-slate-200 text-xs font-bold p-2 bg-slate-50 outline-none">
+            <option value="">Semua Bulan</option>
+            <option value="1">Jan</option><option value="2">Feb</option><option value="3">Mac</option>
+            <option value="4">Apr</option><option value="5">Mei</option><option value="6">Jun</option>
+            <option value="7">Jul</option><option value="8">Ogos</option><option value="9">Sep</option>
+            <option value="10">Okt</option><option value="11">Nov</option><option value="12">Dis</option>
+          </select>
+          <select id="bankFilterYear" onchange="debouncedLoadBankData()" class="rounded-xl border-slate-200 text-xs font-bold p-2 bg-slate-50 outline-none">
+            <option value="2025">2025</option><option value="2026" selected>2026</option><option value="2027">2027</option>
+            <option value="2028">2028</option><option value="2029">2029</option><option value="2030">2030</option><option value="2031">2031</option>
+          </select>
+        </div>
+      </div>
+    </header>
+    <main class="max-w-7xl mx-auto px-4 py-6 space-y-6">
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 ring-2 ring-emerald-400">
+          <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Baki Semasa</p>
+          <p id="bankBakiSemasa" class="text-2xl font-black text-slate-900 mt-1">RM 0.00</p>
+        </div>
+        <div class="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 ring-2 ring-blue-400">
+          <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Jumlah Masuk</p>
+          <p id="bankTotalMasuk" class="text-2xl font-black text-emerald-600 mt-1">RM 0.00</p>
+        </div>
+        <div class="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 ring-2 ring-red-400">
+          <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Jumlah Keluar</p>
+          <p id="bankTotalKeluar" class="text-2xl font-black text-red-500 mt-1">RM 0.00</p>
+        </div>
+      </div>
+      <div class="flex flex-wrap gap-3">
+        <button onclick="openBankAddModal()" class="bg-emerald-600 text-white rounded-2xl font-black text-[10px] uppercase px-6 py-3 shadow-lg active:scale-95 transition-all tracking-widest">+ Rekod Masuk</button>
+        <button onclick="openBankDeductModal()" class="bg-red-500 text-white rounded-2xl font-black text-[10px] uppercase px-6 py-3 shadow-lg active:scale-95 transition-all tracking-widest">+ Rekod Keluar</button>
+        <button onclick="openTransferModal()" class="bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase px-6 py-3 shadow-lg active:scale-95 transition-all tracking-widest">+ Transfer</button>
+      </div>
+      <div class="bg-white p-5 rounded-3xl shadow-sm border border-slate-100">
+        <h3 class="text-[9px] font-black text-slate-400 uppercase tracking-[0.3em] mb-4">Trend Tahunan</h3>
+        <div class="chart-container-lg"><canvas id="bankTrendChart"></canvas></div>
+      </div>
+      <div class="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden overflow-x-auto">
+        <table class="w-full text-left text-sm min-w-[700px]">
+          <thead class="bg-slate-50 text-slate-400 font-black uppercase text-[9px] tracking-widest border-b">
+            <tr>
+              <th class="px-4 py-4 text-center">Aksi</th>
+              <th class="px-4 py-4 sortable cursor-pointer" onclick="handleBankSort('date')">Tarikh <span id="bank-sort-date">&#x25BC;</span></th>
+              <th class="px-4 py-4 text-center sortable cursor-pointer" onclick="handleBankSort('jenis')">Jenis <span id="bank-sort-jenis"></span></th>
+              <th class="px-4 py-4 sortable cursor-pointer" onclick="handleBankSort('category')">Kategori <span id="bank-sort-category"></span></th>
+              <th class="px-4 py-4 sortable cursor-pointer" onclick="handleBankSort('note')">Nota <span id="bank-sort-note"></span></th>
+              <th class="px-4 py-4 text-right sortable cursor-pointer" onclick="handleBankSort('amount')">Amaun <span id="bank-sort-amount"></span></th>
+              <th class="px-4 py-4 text-right sortable cursor-pointer" onclick="handleBankSort('baki')">Baki <span id="bank-sort-baki"></span></th>
+            </tr>
+          </thead>
+          <tbody id="bankTransactionBody" class="divide-y divide-slate-50"></tbody>
+        </table>
+      </div>
+    </main>
+  </div>
+
+  <!-- ============================================================
+     PAGE: REKOD PUKAL
+  ============================================================ -->
+  <div id="page-bulk" class="hidden">
+    <header class="bg-white border-b sticky top-0 z-20 shadow-sm px-6 py-4">
+      <div class="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
+        <h1 class="text-xl font-black text-slate-700 tracking-tighter uppercase">Rekod Pukal</h1>
+        <div class="flex items-center gap-3 bg-slate-100 p-3 rounded-2xl">
+          <label class="text-[9px] font-black text-slate-500 uppercase tracking-widest">Tarikh:</label>
+          <input type="date" id="bulkDateMain" class="rounded-xl border-none bg-transparent font-bold text-sm outline-none">
+        </div>
+      </div>
+    </header>
+    <main class="max-w-7xl mx-auto px-4 py-6 space-y-6">
+      <div class="flex flex-wrap gap-3 mb-4">
+        <button onclick="addBulkRow()" class="border-2 border-dashed border-slate-300 rounded-2xl text-[10px] font-black uppercase text-slate-500 px-6 py-3 hover:bg-slate-100">+ Tambah Baris</button>
+        <button onclick="submitBulkData()" class="bg-slate-800 text-white rounded-2xl font-black text-[10px] uppercase px-6 py-3 shadow-lg active:scale-95">Simpan Semua</button>
+      </div>
+      <div id="bulkRowsContainer" class="space-y-4"></div>
+    </main>
+  </div>
+
+  <!-- ============================================================
+     PAGE: CARTA / ANALITIK
+  ============================================================ -->
+  <div id="page-chart" class="hidden">
+    <header class="bg-white border-b sticky top-0 z-20 shadow-sm px-6 py-4">
+      <div class="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
+        <div>
+          <h1 class="text-xl font-black text-purple-600 tracking-tighter uppercase">Carta & Analitik</h1>
+          <p class="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Trend & Pecahan</p>
+        </div>
+        <select id="chartFilterYear" onchange="loadChartData()" class="rounded-xl border-slate-200 text-xs font-bold p-2 bg-purple-50 outline-none">
+          <option value="2025">2025</option><option value="2026" selected>2026</option><option value="2027">2027</option>
+          <option value="2028">2028</option><option value="2029">2029</option><option value="2030">2030</option><option value="2031">2031</option>
+        </select>
+      </div>
+    </header>
+    <main class="max-w-7xl mx-auto px-4 py-6 space-y-6">
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+          <h3 class="text-[9px] font-black text-slate-400 uppercase tracking-[0.3em] mb-4">Masuk vs Keluar (Mengikut Bank)</h3>
+          <div class="chart-container-lg"><canvas id="chartMasukKeluar"></canvas></div>
+        </div>
+        <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+          <h3 class="text-[9px] font-black text-slate-400 uppercase tracking-[0.3em] mb-4">Trend Baki Bank</h3>
+          <div class="chart-container-lg"><canvas id="chartBakiTrend"></canvas></div>
+        </div>
+      </div>
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+          <h3 class="text-[9px] font-black text-slate-400 uppercase tracking-[0.3em] mb-4">Pecahan Kategori Wang Masuk</h3>
+          <div class="chart-container"><canvas id="chartPieMasuk"></canvas></div>
+        </div>
+        <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+          <h3 class="text-[9px] font-black text-slate-400 uppercase tracking-[0.3em] mb-4">Pecahan Kategori Wang Keluar</h3>
+          <div class="chart-container"><canvas id="chartPieKeluar"></canvas></div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- ============================================================
+     MODALS
+  ============================================================ -->
+
+  <!-- ADD/EDIT TRANSACTION MODAL -->
+  <div id="txModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-[2rem] w-full max-w-md p-8 shadow-2xl">
+      <h3 id="txModalTitle" class="text-xl font-black mb-6 text-center uppercase tracking-widest">Rekod Baru</h3>
+      <form id="txForm" onsubmit="handleTxSubmit(this); return false;" class="space-y-4">
+        <input type="hidden" id="txEditRowId" name="rowId">
+        <input type="hidden" id="txTransferID" name="transferID">
+        <input type="date" id="txFormDate" name="date" required class="w-full rounded-2xl border bg-slate-50 p-4 font-bold outline-none">
+        <div>
+          <label class="text-[9px] font-bold text-slate-400 uppercase block mb-1">Bank</label>
+          <select id="txFormBank" name="bank" class="w-full rounded-2xl border bg-slate-50 p-4 font-bold outline-none"></select>
+        </div>
+        <div>
+          <label class="text-[9px] font-bold text-slate-400 uppercase block mb-1">Jenis Transaksi</label>
+          <select id="txFormJenis" name="jenis" onchange="onJenisChange()" class="w-full rounded-2xl border bg-slate-50 p-4 font-bold outline-none">
+            <option value="Masuk">Masuk</option>
+            <option value="Keluar">Keluar</option>
+          </select>
+        </div>
+        <div>
+          <label class="text-[9px] font-bold text-slate-400 uppercase block mb-1">Kategori</label>
+          <select id="txFormCategory" name="category" class="w-full rounded-2xl border bg-slate-50 p-4 font-bold outline-none"></select>
+        </div>
+        <input type="number" id="txFormAmount" name="amount" step="0.01" required placeholder="0.00" class="w-full rounded-2xl border bg-slate-50 p-4 font-black text-lg outline-none">
+        <input type="text" id="txFormNote" name="note" placeholder="Nota (pilihan)" class="w-full rounded-2xl border bg-slate-50 p-4 text-sm outline-none">
+        <div class="flex gap-4 pt-4">
+          <button type="button" onclick="closeModal('txModal')" class="flex-1 py-4 text-slate-400 font-bold uppercase text-[10px]">Batal</button>
+          <button type="submit" class="flex-1 py-4 bg-emerald-600 text-white rounded-2xl font-black shadow-lg uppercase text-[10px]">Simpan</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- TRANSFER MODAL -->
+  <div id="transferModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-[2rem] w-full max-w-md p-8 shadow-2xl">
+      <h3 class="text-xl font-black mb-6 text-center text-indigo-600 uppercase tracking-widest">Transfer Antara Bank</h3>
+      <form id="transferForm" onsubmit="handleTransferSubmit(this); return false;" class="space-y-4">
+        <input type="date" id="transferFormDate" name="date" required class="w-full rounded-2xl border bg-slate-50 p-4 font-bold outline-none">
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="text-[9px] font-bold text-slate-400 uppercase block mb-1">Dari Bank</label>
+            <select id="transferFromBank" name="fromBank" onchange="onTransferBankChange()" class="w-full rounded-2xl border bg-slate-50 p-4 font-bold outline-none"></select>
+          </div>
+          <div>
+            <label class="text-[9px] font-bold text-slate-400 uppercase block mb-1">Ke Bank</label>
+            <select id="transferToBank" name="toBank" onchange="onTransferBankChange()" class="w-full rounded-2xl border bg-slate-50 p-4 font-bold outline-none"></select>
+          </div>
+        </div>
+        <input type="number" id="transferFormAmount" name="amount" step="0.01" required placeholder="0.00" class="w-full rounded-2xl border bg-slate-50 p-4 font-black text-lg outline-none text-indigo-600">
+        <input type="text" id="transferFormNote" name="note" placeholder="Nota (pilihan)" class="w-full rounded-2xl border bg-slate-50 p-4 text-sm outline-none">
+        <div class="flex gap-4 pt-4">
+          <button type="button" onclick="closeModal('transferModal')" class="flex-1 py-4 text-slate-400 font-bold uppercase text-[10px]">Batal</button>
+          <button type="submit" class="flex-1 py-4 bg-indigo-600 text-white rounded-2xl font-black shadow-lg uppercase text-[10px]">Transfer</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- DELETE CONFIRMATION MODAL -->
+  <div id="deleteModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 hidden flex items-center justify-center p-4 text-center">
+    <div class="bg-white rounded-[2rem] w-full max-w-sm p-8 shadow-2xl">
+      <div class="text-5xl mb-4">🗑️</div>
+      <h3 class="text-xl font-black text-slate-800 uppercase tracking-widest mb-2">Padam Rekod?</h3>
+      <p class="text-sm text-slate-500 font-medium mb-2">Tindakan ini tidak boleh dikembalikan.</p>
+      <p id="deleteModalDetail" class="text-xs text-slate-400 font-bold mb-2"></p>
+      <div id="deleteTransferOption" class="hidden mb-4 bg-indigo-50 p-4 rounded-2xl text-left">
+        <label class="flex items-center gap-2 cursor-pointer text-sm font-bold text-indigo-700">
+          <input type="checkbox" id="deleteTransferPair"> Padam kedua-dua rekod transfer
+        </label>
+      </div>
+      <div class="flex gap-4">
+        <button onclick="closeDeleteModal()" class="flex-1 py-4 text-slate-400 font-bold uppercase text-[10px] bg-slate-100 rounded-2xl hover:bg-slate-200 transition-all">Batal</button>
+        <button id="deleteConfirmBtn" class="flex-1 py-4 bg-red-500 text-white rounded-2xl font-black shadow-lg uppercase text-[10px] hover:bg-red-600 transition-all active:scale-95">Padam</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ============================================================
+    //   GLOBAL STATE
+    // ============================================================
+    var activeTab = 'summary';
+    var activeBank = '';
+    var bankCount = 2;
+    var bankList = [];
+    var categoriesMasuk = [];
+    var categoriesKeluar = [];
+    var bankTransactions = [];
+    var bankSortConfig = { key: 'date', direction: 'desc' };
+    var MONTHS = ['Jan','Feb','Mac','Apr','Mei','Jun','Jul','Ogos','Sep','Okt','Nov','Dis'];
+    var pendingDeleteId = null;
+    var pendingDeleteIsTransfer = false;
+    var pendingDeleteBank = '';
+
+    // Chart instances
+    var sumBarChart, sumPieChart, bankTrendChart;
+    var chartMasukKeluar, chartBakiTrend, chartPieMasuk, chartPieKeluar;
+
+    var BANK_COLORS = {
+      'Maybank': { base: '#f59e0b', light: '#fef3c7', medium: '#fbbf24', dark: '#b45309' },
+      'Bank Islam': { base: '#0d9488', light: '#ccfbf1', medium: '#5eead4', dark: '#0f766e' }
+    };
+
+    function getBankColor(name) {
+      return BANK_COLORS[name] || { base: '#64748b', light: '#f1f5f9', medium: '#94a3b8', dark: '#334155' };
+    }
+
+    // ============================================================
+    //   UI HELPERS
+    // ============================================================
+
+    function showToast(message, type) {
+      type = type || 'info';
+      var toast = document.createElement('div');
+      toast.className = 'toast ' + type;
+      toast.innerText = message;
+      document.body.appendChild(toast);
+      setTimeout(function() {
+        toast.classList.add('hide');
+        setTimeout(function() { toast.remove(); }, 300);
+      }, 3000);
+    }
+
+    function showLoader(show) {
+      document.getElementById('loader').style.display = show ? 'flex' : 'none';
+    }
+
+    function fRM(v) {
+      return parseFloat(v||0).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+    }
+
+    function closeModal(id) {
+      document.getElementById(id).classList.add('hidden');
+    }
+
+    function openModal(id) {
+      document.getElementById(id).classList.remove('hidden');
+    }
+
+    var filterTimeout;
+    function debouncedLoadAllData() {
+      clearTimeout(filterTimeout);
+      filterTimeout = setTimeout(function() { loadAllData(); }, 300);
+    }
+
+    var bankFilterTimeout;
+    function debouncedLoadBankData() {
+      clearTimeout(bankFilterTimeout);
+      bankFilterTimeout = setTimeout(function() { loadBankData(); }, 300);
+    }
+
+    function clearBankDate() {
+      document.getElementById('bankFilterDate').value = '';
+    }
+
+    // ============================================================
+    //   INIT
+    // ============================================================
+
+    window.onload = function() {
+      google.script.run
+        .withSuccessHandler(function(data) {
+          bankList = data.bankList;
+          categoriesMasuk = data.categoriesMasuk;
+          categoriesKeluar = data.categoriesKeluar;
+          updateNavLabels();
+          loadAllData();
+        })
+        .withFailureHandler(function(e) {
+          showToast('Error load config: ' + e.message, 'error');
+        })
+        .getFullDataForCharts(2026);
+    };
+
+    function updateNavLabels() {
+      if (bankList.length >= 1) document.getElementById('nav-bank1-label').innerText = bankList[0];
+      if (bankList.length >= 2) document.getElementById('nav-bank2-label').innerText = bankList[1];
+      bankCount = bankList.length;
+    }
+
+    // ============================================================
+    //   NAVIGATION
+    // ============================================================
+
+    function switchTab(tab) {
+      activeTab = tab;
+      document.getElementById('page-summary').classList.toggle('hidden', tab !== 'summary');
+      document.getElementById('page-bank').classList.toggle('hidden', tab !== 'bank1' && tab !== 'bank2');
+      document.getElementById('page-bulk').classList.toggle('hidden', tab !== 'bulk');
+      document.getElementById('page-chart').classList.toggle('hidden', tab !== 'chart');
+
+      // Nav styling
+      ['summary','bank1','bank2','bulk','chart'].forEach(function(t) {
+        var el = document.getElementById('nav-' + t);
+        el.classList.remove('nav-active-sum','nav-active-bank1','nav-active-bank2','nav-active-bulk','nav-active-chart');
+        el.classList.add('text-slate-400');
+      });
+
+      var navMap = { summary:'nav-active-sum', bank1:'nav-active-bank1', bank2:'nav-active-bank2', bulk:'nav-active-bulk', chart:'nav-active-chart' };
+      var activeClass = navMap[tab] || 'text-slate-400';
+      var navEl = document.getElementById('nav-' + tab);
+      if (navEl) {
+        navEl.classList.add(activeClass);
+        navEl.classList.remove('text-slate-400');
+      }
+
+      if (tab === 'bank1' || tab === 'bank2') {
+        var bankIdx = tab === 'bank1' ? 0 : 1;
+        activeBank = bankList[bankIdx] || 'Maybank';
+        document.getElementById('bankPageTitle').innerText = activeBank;
+        document.getElementById('bankPageTitle').className = 'text-xl font-black tracking-tighter uppercase ' + (bankIdx === 0 ? 'text-amber-600' : 'text-teal-600');
+        loadBankData();
+      } else if (tab === 'summary') {
+        loadAllData();
+      } else if (tab === 'chart') {
+        loadChartData();
+      } else if (tab === 'bulk') {
+        var bulkDate = document.getElementById('bulkDateMain');
+        if (bulkDate && !bulkDate.value) {
+          bulkDate.value = new Date().toISOString().split('T')[0];
+        }
+        initBulkForm();
+      }
+    }
+
+    // ============================================================
+    //   LOAD ALL DATA (Summary)
+    // ============================================================
+
+    function loadAllData() {
+      showLoader(true);
+      var m = document.getElementById('sumFilterMonth').value;
+      var y = document.getElementById('sumFilterYear').value;
+
+      google.script.run
+        .withSuccessHandler(function(summary) {
+          if (summary) {
+            bankList = summary.bankList || bankList;
+            updateNavLabels();
+            renderSummaryCards(summary);
+            renderSumBarChart(summary);
+            renderSumPieChart(summary);
+          }
+          showLoader(false);
+        })
+        .withFailureHandler(function(e) {
+          showLoader(false);
+          showToast('Error: ' + e.message, 'error');
+        })
+        .getFullDataForCharts(y);
+    }
+
+    function renderSummaryCards(summary) {
+      var container = document.getElementById('sumBankCards');
+      if (!summary.bankList) return;
+
+      var html = '';
+
+      var grandBaki = 0;
+      summary.bankList.forEach(function(bank, idx) {
+        var b = summary.balances ? (summary.balances[bank] || 0) : 0;
+        var color = getBankColor(bank);
+        var totalMasuk = summary.summary && summary.summary.banks[bank] ? summary.summary.banks[bank].totalMasuk : 0;
+        var totalKeluar = summary.summary && summary.summary.banks[bank] ? summary.summary.banks[bank].totalKeluar : 0;
+        var bakiSemasa = summary.summary && summary.summary.banks[bank] ? summary.summary.banks[bank].bakiSemasa : b;
+        grandBaki += bakiSemasa;
+
+        html += '<div class="summary-card bg-white rounded-3xl p-5 border border-slate-100 shadow-sm transition-all">';
+        html += '<div class="flex items-center justify-between mb-3">';
+        html += '<div class="rounded-2xl p-2" style="background:' + color.light + '"><svg class="w-5 h-5" style="color:' + color.dark + '" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg></div>';
+        html += '<span class="text-[9px] font-black px-2 py-0.5 rounded-full" style="background:' + color.light + '; color:' + color.dark + '">' + bank + '</span>';
+        html += '</div>';
+        html += '<p class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Baki Semasa</p>';
+        html += '<p class="text-2xl font-black ' + (bakiSemasa >= 0 ? 'text-emerald-600' : 'text-red-500') + ' mt-1">RM ' + fRM(bakiSemasa) + '</p>';
+        html += '<div class="mt-3 flex justify-between text-[10px] font-bold">';
+        html += '<span class="text-emerald-500">+RM ' + fRM(totalMasuk) + '</span>';
+        html += '<span class="text-red-400">-RM ' + fRM(totalKeluar) + '</span>';
+        html += '</div>';
+        html += '</div>';
+      });
+
+      // Grand total card
+      html += '<div class="summary-card bg-gradient-to-br from-indigo-600 to-indigo-800 rounded-3xl p-5 shadow-xl text-white">';
+      html += '<p class="text-[9px] font-black uppercase tracking-[0.3em] opacity-70 mb-1">Jumlah Keseluruhan</p>';
+      html += '<p class="text-2xl font-black tracking-tighter">RM ' + fRM(grandBaki) + '</p>';
+      html += '<div class="mt-3 pt-3 border-t border-white/20 flex justify-between text-[10px] font-bold opacity-70">';
+      html += '<span>Semua Bank</span>';
+      html += '<span>' + summary.bankList.length + ' Bank</span>';
+      html += '</div>';
+      html += '</div>';
+
+      container.innerHTML = html;
+    }
+
+    function renderSumBarChart(summary) {
+      var ctx = document.getElementById('sumBarChart');
+      if (!ctx) return;
+      if (sumBarChart) sumBarChart.destroy();
+
+      var labels = MONTHS;
+      var datasets = [];
+      var colors = ['#f59e0b','#0d9488','#6366f1','#10b981','#ef4444','#8b5cf6','#ec4899','#f97316'];
+
+      summary.bankList.forEach(function(bank, idx) {
+        var yd = summary.yearlySummary[bank] || { masuk: Array(12).fill(0), keluar: Array(12).fill(0) };
+        var netData = yd.masuk.map(function(m, i) { return m - (yd.keluar[i] || 0); });
+
+        datasets.push({
+          label: bank + ' (Net)',
+          data: netData,
+          backgroundColor: colors[idx % colors.length] + '80',
+          borderColor: colors[idx % colors.length],
+          borderWidth: 2,
+          borderRadius: 6
+        });
+      });
+
+      sumBarChart = new Chart(ctx, {
+        type: 'bar',
+        data: { labels: labels, datasets: datasets },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 15, font: { size: 10 } } } },
+          scales: {
+            y: { ticks: { callback: function(v) { return 'RM ' + v; } }, grid: { color: '#f1f5f9' } },
+            x: { grid: { display: false } }
+          }
+        }
+      });
+    }
+
+    function renderSumPieChart(summary) {
+      var ctx = document.getElementById('sumPieChart');
+      if (!ctx) return;
+      if (sumPieChart) sumPieChart.destroy();
+
+      var catTotals = {};
+      for (var bank in summary.summary.banks) {
+        var bd = summary.summary.banks[bank];
+        for (var cat in bd.categoryTotals) {
+          if (!catTotals[cat]) catTotals[cat] = 0;
+          catTotals[cat] += bd.categoryTotals[cat];
+        }
+      }
+
+      var labels = Object.keys(catTotals);
+      var data = Object.values(catTotals);
+      var bgColors = ['#f59e0b','#0d9488','#6366f1','#ef4444','#10b981','#8b5cf6','#f97316','#ec4899','#06b6d4','#84cc16','#e11d48','#7c3aed'];
+
+      sumPieChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: labels,
+          datasets: [{ data: data, backgroundColor: bgColors, borderWidth: 0 }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, padding: 10, font: { size: 9 } } } }
+        }
+      });
+    }
+
+    // ============================================================
+    //   LOAD BANK DATA (Single Bank)
+    // ============================================================
+
+    function loadBankData() {
+      showLoader(true);
+      var m = document.getElementById('bankFilterMonth').value;
+      var y = document.getElementById('bankFilterYear').value;
+      var sDate = document.getElementById('bankFilterDate').value;
+
+      google.script.run
+        .withSuccessHandler(function(data) {
+          bankTransactions = data.transactions || [];
+          if (sDate) {
+            bankTransactions = bankTransactions.filter(function(t) { return t.date === sDate; });
+          }
+          applyBankSort();
+          renderBankStats(data);
+          renderBankTable();
+          renderBankTrendChart(data.yearlyData || { masuk: Array(12).fill(0), keluar: Array(12).fill(0) });
+          showLoader(false);
+        })
+        .withFailureHandler(function(e) {
+          showLoader(false);
+          showToast('Error: ' + e.message, 'error');
+        })
+        .getBatchBankData(activeBank, m, y);
+    }
+
+    function renderBankStats(data) {
+      var totalMasuk = 0, totalKeluar = 0;
+      bankTransactions.forEach(function(t) {
+        if (t.jenis === 'Masuk' || t.jenis === 'Transfer Masuk') totalMasuk += t.amount;
+        else if (t.jenis === 'Keluar' || t.jenis === 'Transfer Keluar') totalKeluar += t.amount;
+      });
+
+      document.getElementById('bankBakiSemasa').innerText = 'RM ' + fRM(data.bakiSemasa);
+      document.getElementById('bankBakiSemasa').className = 'text-2xl font-black mt-1 ' + (data.bakiSemasa >= 0 ? 'text-emerald-600' : 'text-red-500');
+      document.getElementById('bankTotalMasuk').innerText = 'RM ' + fRM(totalMasuk);
+      document.getElementById('bankTotalKeluar').innerText = 'RM ' + fRM(totalKeluar);
+    }
+
+    function renderBankTable() {
+      var tbody = document.getElementById('bankTransactionBody');
+      if (bankTransactions.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="px-6 py-12 text-center text-slate-300 font-bold uppercase text-[10px] tracking-widest">Tiada Rekod</td></tr>';
+        return;
+      }
+
+      var html = '';
+      bankTransactions.forEach(function(t) {
+        var jenisClass = '';
+        var jenisLabel = t.jenis;
+        if (t.jenis === 'Masuk' || t.jenis === 'Transfer Masuk') { jenisClass = 'tx-masuk'; }
+        else if (t.jenis === 'Keluar' || t.jenis === 'Transfer Keluar') { jenisClass = 'tx-keluar'; }
+
+        var isTransfer = t.transferID ? true : false;
+        if (isTransfer) jenisClass = 'tx-transfer';
+
+        var amountPrefix = (t.jenis === 'Masuk' || t.jenis === 'Transfer Masuk') ? '+' : '-';
+
+        html += '<tr class="hover:bg-slate-50 transition-all">';
+        html += '<td class="px-4 py-3 text-center"><button onclick="openBankEditModal(' + t.rowId + ')" class="text-blue-500 hover:text-blue-700 text-[10px] font-bold mr-2">Edit</button><button onclick="confirmDelete(' + t.rowId + ', \'' + (t.jenis || '') + '\', \'' + fRM(t.amount) + '\', ' + isTransfer + ', \'' + (activeBank || '') + '\')" class="text-red-400 hover:text-red-600 text-[10px] font-bold">Del</button></td>';
+        html += '<td class="px-4 py-3 font-bold text-xs">' + t.date + '</td>';
+        html += '<td class="px-4 py-3 text-center"><span class="text-[10px] font-bold ' + jenisClass + '">' + jenisLabel + '</span></td>';
+        html += '<td class="px-4 py-3 text-xs font-bold">' + (t.category || '-') + '</td>';
+        html += '<td class="px-4 py-3 text-xs text-slate-500">' + (t.note || '-') + '</td>';
+        html += '<td class="px-4 py-3 text-right font-black text-sm ' + jenisClass + '">' + amountPrefix + 'RM ' + fRM(t.amount) + '</td>';
+        html += '<td class="px-4 py-3 text-right font-black text-xs ' + (t.baki >= 0 ? 'text-emerald-600' : 'text-red-500') + '">RM ' + fRM(t.baki) + '</td>';
+        html += '</tr>';
+      });
+      tbody.innerHTML = html;
+    }
+
+    function renderBankTrendChart(yearlyData) {
+      var ctx = document.getElementById('bankTrendChart');
+      if (!ctx) return;
+      if (bankTrendChart) bankTrendChart.destroy();
+
+      var color = getBankColor(activeBank);
+
+      bankTrendChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: MONTHS,
+          datasets: [
+            {
+              label: 'Masuk',
+              data: yearlyData.masuk || Array(12).fill(0),
+              backgroundColor: '#10b981',
+              borderRadius: 6,
+              order: 2
+            },
+            {
+              label: 'Keluar',
+              data: (yearlyData.keluar || Array(12).fill(0)).map(function(v) { return -v; }),
+              backgroundColor: '#ef4444',
+              borderRadius: 6,
+              order: 2
+            },
+            {
+              label: 'Net',
+              data: (yearlyData.masuk || Array(12).fill(0)).map(function(m, i) { return m - (yearlyData.keluar[i] || 0); }),
+              type: 'line',
+              borderColor: color.dark,
+              backgroundColor: color.medium + '40',
+              borderWidth: 2,
+              fill: true,
+              tension: 0.3,
+              pointRadius: 3,
+              order: 1
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 15, font: { size: 9 } } } },
+          scales: {
+            y: { ticks: { callback: function(v) { return 'RM ' + v; } }, grid: { color: '#f1f5f9' } },
+            x: { grid: { display: false } }
+          }
+        }
+      });
+    }
+
+    // ============================================================
+    //   BANK SORT
+    // ============================================================
+
+    function handleBankSort(key) {
+      if (bankSortConfig.key === key) {
+        bankSortConfig.direction = bankSortConfig.direction === 'asc' ? 'desc' : 'asc';
+      } else {
+        bankSortConfig.key = key;
+        bankSortConfig.direction = key === 'date' ? 'desc' : 'asc';
+      }
+      applyBankSort();
+    }
+
+    function applyBankSort() {
+      var key = bankSortConfig.key;
+      var dir = bankSortConfig.direction;
+      bankTransactions.sort(function(a, b) {
+        var va = a[key], vb = b[key];
+        if (key === 'date') { va = new Date(va); vb = new Date(vb); }
+        else if (key === 'amount' || key === 'baki') { va = parseFloat(va) || 0; vb = parseFloat(vb) || 0; }
+        else { va = (va || '').toString().toLowerCase(); vb = (vb || '').toString().toLowerCase(); }
+
+        if (va < vb) return dir === 'asc' ? -1 : 1;
+        if (va > vb) return dir === 'asc' ? 1 : -1;
+        return 0;
+      });
+
+      ['date','jenis','category','note','amount','baki'].forEach(function(k) {
+        var el = document.getElementById('bank-sort-' + k);
+        if (el) el.innerHTML = (key === k ? (dir === 'asc' ? '&#x25B2;' : '&#x25BC;') : '');
+      });
+
+      renderBankTable();
+    }
+
+    // ============================================================
+    //   MODAL: ADD / EDIT TRANSACTION
+    // ============================================================
+
+    function openBankAddModal() {
+      document.getElementById('txModalTitle').innerText = 'Rekod Masuk — ' + activeBank;
+      document.getElementById('txModalTitle').className = 'text-xl font-black mb-6 text-center text-emerald-600 uppercase tracking-widest';
+      document.getElementById('txEditRowId').value = '';
+      document.getElementById('txTransferID').value = '';
+      document.getElementById('txFormDate').value = new Date().toISOString().split('T')[0];
+      document.getElementById('txFormJenis').value = 'Masuk';
+      document.getElementById('txFormAmount').value = '';
+      document.getElementById('txFormNote').value = '';
+
+      populateBankDropdown(activeBank);
+      onJenisChange();
+      openModal('txModal');
+    }
+
+    function openBankDeductModal() {
+      document.getElementById('txModalTitle').innerText = 'Rekod Keluar — ' + activeBank;
+      document.getElementById('txModalTitle').className = 'text-xl font-black mb-6 text-center text-red-500 uppercase tracking-widest';
+      document.getElementById('txEditRowId').value = '';
+      document.getElementById('txTransferID').value = '';
+      document.getElementById('txFormDate').value = new Date().toISOString().split('T')[0];
+      document.getElementById('txFormJenis').value = 'Keluar';
+      document.getElementById('txFormAmount').value = '';
+      document.getElementById('txFormNote').value = '';
+
+      populateBankDropdown(activeBank);
+      onJenisChange();
+      openModal('txModal');
+    }
+
+    function openBankEditModal(rowId) {
+      var tx = null;
+      for (var i = 0; i < bankTransactions.length; i++) {
+        if (bankTransactions[i].rowId === rowId) { tx = bankTransactions[i]; break; }
+      }
+      if (!tx) return;
+
+      var isTransfer = tx.transferID ? true : false;
+      var jenisLabel = tx.jenis === 'Masuk' || tx.jenis === 'Transfer Masuk' ? 'Edit Rekod Masuk' : 'Edit Rekod Keluar';
+      if (isTransfer) jenisLabel = 'Edit Transfer';
+
+      document.getElementById('txModalTitle').innerText = jenisLabel;
+      document.getElementById('txModalTitle').className = 'text-xl font-black mb-6 text-center text-slate-800 uppercase tracking-widest';
+      document.getElementById('txEditRowId').value = rowId;
+      document.getElementById('txTransferID').value = tx.transferID || '';
+      document.getElementById('txFormDate').value = tx.date;
+      document.getElementById('txFormJenis').value = tx.jenis;
+      document.getElementById('txFormAmount').value = tx.amount;
+      document.getElementById('txFormNote').value = tx.note || '';
+
+      populateBankDropdown(tx.bank);
+      document.getElementById('txFormJenis').disabled = isTransfer;
+      onJenisChange();
+      openModal('txModal');
+    }
+
+    function populateBankDropdown(selected) {
+      var sel = document.getElementById('txFormBank');
+      sel.innerHTML = '';
+      bankList.forEach(function(bank) {
+        sel.innerHTML += '<option value="' + bank + '" ' + (bank === selected ? 'selected' : '') + '>' + bank + '</option>';
+      });
+    }
+
+    function onJenisChange() {
+      var jenis = document.getElementById('txFormJenis').value;
+      var catDropdown = document.getElementById('txFormCategory');
+      catDropdown.innerHTML = '';
+      var cats = (jenis === 'Masuk' || jenis === 'Transfer Masuk') ? categoriesMasuk : categoriesKeluar;
+
+      cats.forEach(function(cat) {
+        catDropdown.innerHTML += '<option value="' + cat.name + '">' + (cat.icon || '') + ' ' + cat.name + '</option>';
+      });
+    }
+
+    function handleTxSubmit(form) {
+      var rowId = document.getElementById('txEditRowId').value;
+      var data = {
+        rowId: rowId ? parseInt(rowId) : null,
+        date: document.getElementById('txFormDate').value,
+        bank: document.getElementById('txFormBank').value,
+        jenis: document.getElementById('txFormJenis').value,
+        category: document.getElementById('txFormCategory').value,
+        amount: parseFloat(document.getElementById('txFormAmount').value),
+        note: document.getElementById('txFormNote').value,
+        transferID: document.getElementById('txTransferID').value || ''
+      };
+
+      if (!data.amount || data.amount <= 0) { showToast('Amaun mesti lebih dari 0', 'error'); return; }
+
+      showLoader(true);
+      var fn = rowId ? 'updateTransaction' : 'addTransaction';
+
+      google.script.run
+        .withSuccessHandler(function(r) {
+          closeModal('txModal');
+          showToast(r.message, 'success');
+          loadBankData();
+        })
+        .withFailureHandler(function(e) {
+          showLoader(false);
+          showToast('Error: ' + e.message, 'error');
+        })
+        [fn](data);
+    }
+
+    // ============================================================
+    //   MODAL: TRANSFER
+    // ============================================================
+
+    function openTransferModal() {
+      document.getElementById('transferFormDate').value = new Date().toISOString().split('T')[0];
+      document.getElementById('transferFormAmount').value = '';
+      document.getElementById('transferFormNote').value = '';
+
+      var fromSel = document.getElementById('transferFromBank');
+      var toSel = document.getElementById('transferToBank');
+      fromSel.innerHTML = '';
+      toSel.innerHTML = '';
+
+      bankList.forEach(function(bank) {
+        fromSel.innerHTML += '<option value="' + bank + '" ' + (bank === activeBank ? 'selected' : '') + '>' + bank + '</option>';
+        toSel.innerHTML += '<option value="' + bank + '" ' + (bank !== activeBank ? 'selected' : '') + '>' + bank + '</option>';
+      });
+
+      onTransferBankChange();
+      openModal('transferModal');
+    }
+
+    function onTransferBankChange() {
+      var from = document.getElementById('transferFromBank').value;
+      var to = document.getElementById('transferToBank').value;
+      var submitBtn = document.querySelector('#transferForm button[type=submit]');
+      if (from === to) {
+        submitBtn.disabled = true;
+        submitBtn.classList.add('opacity-50');
+      } else {
+        submitBtn.disabled = false;
+        submitBtn.classList.remove('opacity-50');
+      }
+    }
+
+    function handleTransferSubmit(form) {
+      var from = document.getElementById('transferFromBank').value;
+      var to = document.getElementById('transferToBank').value;
+      if (from === to) { showToast('Bank sumber dan destinasi tidak boleh sama', 'error'); return; }
+
+      var data = {
+        date: document.getElementById('transferFormDate').value,
+        fromBank: from,
+        toBank: to,
+        amount: parseFloat(document.getElementById('transferFormAmount').value),
+        note: document.getElementById('transferFormNote').value
+      };
+
+      if (!data.amount || data.amount <= 0) { showToast('Amaun mesti lebih dari 0', 'error'); return; }
+
+      showLoader(true);
+      google.script.run
+        .withSuccessHandler(function(r) {
+          closeModal('transferModal');
+          showToast(r.message, 'success');
+          loadBankData();
+        })
+        .withFailureHandler(function(e) {
+          showLoader(false);
+          showToast('Error: ' + e.message, 'error');
+        })
+        .addTransfer(data);
+    }
+
+    // ============================================================
+    //   MODAL: DELETE
+    // ============================================================
+
+    function confirmDelete(rowId, jenis, amount, isTransfer, bank) {
+      pendingDeleteId = rowId;
+      pendingDeleteIsTransfer = isTransfer;
+      pendingDeleteBank = bank;
+      document.getElementById('deleteModalDetail').innerText = jenis + ' — RM ' + amount + ' (' + bank + ')';
+      document.getElementById('deleteTransferOption').classList.toggle('hidden', !isTransfer);
+      document.getElementById('deleteTransferPair').checked = true;
+      openModal('deleteModal');
+
+      document.getElementById('deleteConfirmBtn').onclick = function() {
+        executeDelete();
+      };
+    }
+
+    function closeDeleteModal() {
+      closeModal('deleteModal');
+      pendingDeleteId = null;
+      pendingDeleteIsTransfer = false;
+      pendingDeleteBank = '';
+    }
+
+    function executeDelete() {
+      if (!pendingDeleteId) return;
+      var deletePair = pendingDeleteIsTransfer && document.getElementById('deleteTransferPair').checked;
+
+      showLoader(true);
+      google.script.run
+        .withSuccessHandler(function(r) {
+          closeDeleteModal();
+          showToast(r.message, 'success');
+          loadBankData();
+        })
+        .withFailureHandler(function(e) {
+          closeDeleteModal();
+          showLoader(false);
+          showToast('Error: ' + e.message, 'error');
+        })
+        .deleteTransaction(pendingDeleteId, deletePair);
+    }
+
+    // ============================================================
+    //   REKOD PUKAL
+    // ============================================================
+
+    function initBulkForm() {
+      var container = document.getElementById('bulkRowsContainer');
+      container.innerHTML = '';
+      for (var i = 0; i < 3; i++) addBulkRow();
+    }
+
+    function addBulkRow() {
+      var container = document.getElementById('bulkRowsContainer');
+      var idx = container.children.length;
+      var html = '<div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-wrap items-center gap-3">';
+      html += '<select id="bulkBank_' + idx + '" class="rounded-xl border bg-slate-50 p-2 text-xs font-bold outline-none" style="min-width:120px">';
+      bankList.forEach(function(b) { html += '<option value="' + b + '">' + b + '</option>'; });
+      html += '</select>';
+      html += '<select id="bulkJenis_' + idx + '" onchange="onBulkJenisChange(' + idx + ')" class="rounded-xl border bg-slate-50 p-2 text-xs font-bold outline-none" style="min-width:100px"><option value="Masuk">Masuk</option><option value="Keluar">Keluar</option></select>';
+      html += '<select id="bulkCategory_' + idx + '" class="rounded-xl border bg-slate-50 p-2 text-xs font-bold outline-none" style="min-width:140px"></select>';
+      html += '<input type="number" id="bulkAmount_' + idx + '" step="0.01" placeholder="Amaun" class="rounded-xl border bg-slate-50 p-2 text-sm font-bold outline-none w-28">';
+      html += '<input type="text" id="bulkNote_' + idx + '" placeholder="Nota" class="rounded-xl border bg-slate-50 p-2 text-xs outline-none flex-1 min-w-[100px]">';
+      html += '<button onclick="this.closest(\'.bg-white\').remove()" class="text-red-400 font-bold text-lg">&times;</button>';
+      html += '</div>';
+      container.insertAdjacentHTML('beforeend', html);
+      updateBulkCategories(idx);
+    }
+
+    function onBulkJenisChange(idx) {
+      updateBulkCategories(idx);
+    }
+
+    function updateBulkCategories(idx) {
+      var jenisEl = document.getElementById('bulkJenis_' + idx);
+      var catEl = document.getElementById('bulkCategory_' + idx);
+      if (!jenisEl || !catEl) return;
+      var jenis = jenisEl.value;
+      var cats = (jenis === 'Masuk') ? categoriesMasuk : categoriesKeluar;
+      catEl.innerHTML = '';
+      cats.forEach(function(cat) {
+        catEl.innerHTML += '<option value="' + cat.name + '">' + (cat.icon || '') + ' ' + cat.name + '</option>';
+      });
+    }
+
+    function submitBulkData() {
+      var container = document.getElementById('bulkRowsContainer');
+      var rows = [];
+      var bulkDate = document.getElementById('bulkDateMain').value;
+      if (!bulkDate) { showToast('Sila pilih tarikh', 'error'); return; }
+
+      for (var i = 0; i < container.children.length; i++) {
+        var row = {
+          date: bulkDate,
+          bank: document.getElementById('bulkBank_' + i) ? document.getElementById('bulkBank_' + i).value : '',
+          jenis: document.getElementById('bulkJenis_' + i) ? document.getElementById('bulkJenis_' + i).value : '',
+          category: document.getElementById('bulkCategory_' + i) ? document.getElementById('bulkCategory_' + i).value : '',
+          amount: parseFloat(document.getElementById('bulkAmount_' + i) ? document.getElementById('bulkAmount_' + i).value : 0),
+          note: document.getElementById('bulkNote_' + i) ? document.getElementById('bulkNote_' + i).value : '',
+          transferID: ''
+        };
+        if (row.amount && row.amount > 0) rows.push(row);
+      }
+
+      if (rows.length === 0) { showToast('Tiada data untuk disimpan', 'error'); return; }
+
+      showLoader(true);
+      google.script.run
+        .withSuccessHandler(function(r) {
+          showLoader(false);
+          showToast(r.message, 'success');
+          initBulkForm();
+        })
+        .withFailureHandler(function(e) {
+          showLoader(false);
+          showToast('Error: ' + e.message, 'error');
+        })
+        .addBulkTransactions(rows);
+    }
+
+    // ============================================================
+    //   CARTA / ANALITIK
+    // ============================================================
+
+    function loadChartData() {
+      showLoader(true);
+      var y = document.getElementById('chartFilterYear').value;
+
+      google.script.run
+        .withSuccessHandler(function(data) {
+          renderChartMasukKeluar(data);
+          renderChartPieMasuk(data);
+          renderChartPieKeluar(data);
+          showLoader(false);
+        })
+        .withFailureHandler(function(e) {
+          showLoader(false);
+          showToast('Error: ' + e.message, 'error');
+        })
+        .getFullDataForCharts(y);
+    }
+
+    function renderChartMasukKeluar(data) {
+      var ctx = document.getElementById('chartMasukKeluar');
+      if (!ctx) return;
+      if (chartMasukKeluar) chartMasukKeluar.destroy();
+
+      var datasets = [];
+      var colors = ['#f59e0b','#0d9488','#6366f1','#ef4444','#10b981','#8b5cf6'];
+
+      data.bankList.forEach(function(bank, idx) {
+        var color = colors[idx % colors.length];
+        var yd = data.yearlySummary[bank] || { masuk: Array(12).fill(0), keluar: Array(12).fill(0) };
+
+        datasets.push({
+          label: bank + ' (Masuk)',
+          data: yd.masuk,
+          backgroundColor: color + '60',
+          borderColor: color,
+          borderWidth: 1,
+          borderRadius: 4,
+          stack: bank + '_masuk'
+        });
+        datasets.push({
+          label: bank + ' (Keluar)',
+          data: (yd.keluar || Array(12).fill(0)).map(function(v) { return -v; }),
+          backgroundColor: color + '30',
+          borderColor: color,
+          borderWidth: 1,
+          borderRadius: 4,
+          stack: bank + '_keluar'
+        });
+      });
+
+      chartMasukKeluar = new Chart(ctx, {
+        type: 'bar',
+        data: { labels: MONTHS, datasets: datasets },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, padding: 12, font: { size: 9 } } } },
+          scales: {
+            y: { ticks: { callback: function(v) { return 'RM ' + v; } }, grid: { color: '#f1f5f9' } },
+            x: { grid: { display: false } }
+          }
+        }
+      });
+    }
+
+    function renderChartPieMasuk(data) {
+      var ctx = document.getElementById('chartPieMasuk');
+      if (!ctx) return;
+      if (chartPieMasuk) chartPieMasuk.destroy();
+
+      var catTotals = {};
+      for (var bank in data.summary.banks) {
+        var bd = data.summary.banks[bank];
+        for (var cat in bd.categoryTotals) {
+          if (!catTotals[cat]) catTotals[cat] = 0;
+          catTotals[cat] += bd.categoryTotals[cat];
+        }
+      }
+
+      // Filter for masuk categories only
+      var masukCatNames = categoriesMasuk.map(function(c) { return c.name; });
+      var filteredLabels = [], filteredData = [];
+      for (var cat in catTotals) {
+        if (masukCatNames.indexOf(cat) !== -1) {
+          filteredLabels.push(cat);
+          filteredData.push(catTotals[cat]);
+        }
+      }
+
+      if (filteredLabels.length === 0) { filteredLabels = ['Tiada Data']; filteredData = [1]; }
+
+      var bgColors = ['#f59e0b','#0d9488','#6366f1','#10b981','#8b5cf6','#f97316','#ec4899','#06b6d4','#84cc16','#e11d48'];
+
+      chartPieMasuk = new Chart(ctx, {
+        type: 'doughnut',
+        data: { labels: filteredLabels, datasets: [{ data: filteredData, backgroundColor: bgColors, borderWidth: 0 }] },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, padding: 10, font: { size: 9 } } } }
+        }
+      });
+    }
+
+    function renderChartPieKeluar(data) {
+      var ctx = document.getElementById('chartPieKeluar');
+      if (!ctx) return;
+      if (chartPieKeluar) chartPieKeluar.destroy();
+
+      var catTotals = {};
+      for (var bank in data.summary.banks) {
+        var bd = data.summary.banks[bank];
+        for (var cat in bd.categoryTotals) {
+          if (!catTotals[cat]) catTotals[cat] = 0;
+          catTotals[cat] += bd.categoryTotals[cat];
+        }
+      }
+
+      // Filter for keluar categories
+      var keluarCatNames = categoriesKeluar.map(function(c) { return c.name; });
+      var filteredLabels = [], filteredData = [];
+      for (var cat in catTotals) {
+        if (keluarCatNames.indexOf(cat) !== -1) {
+          filteredLabels.push(cat);
+          filteredData.push(catTotals[cat]);
+        }
+      }
+
+      if (filteredLabels.length === 0) { filteredLabels = ['Tiada Data']; filteredData = [1]; }
+
+      var bgColors = ['#ef4444','#f97316','#e11d48','#f59e0b','#ec4899','#dc2626','#b91c1c','#c026d3','#be185d','#9d174d'];
+
+      chartPieKeluar = new Chart(ctx, {
+        type: 'doughnut',
+        data: { labels: filteredLabels, datasets: [{ data: filteredData, backgroundColor: bgColors, borderWidth: 0 }] },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, padding: 10, font: { size: 9 } } } }
+        }
+      });
+    }
+
+    // ============================================================
+    //   KEYBOARD SHORTCUT: ESC to close modals
+    // ============================================================
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        closeModal('txModal');
+        closeModal('transferModal');
+        closeDeleteModal();
+      }
+    });
+  </script>
+</body>
+</html>
