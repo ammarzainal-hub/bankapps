@@ -860,3 +860,11 @@ function getFullDataForCharts(year) {
     };
   });
 }
+
+function getMonthComparisonData(monthA, yearA, monthB, yearB) {
+  return {
+    monthA: getBatchSummaryData(monthA, yearA),
+    monthB: getBatchSummaryData(monthB, yearB),
+    bankList: getConfigDirect().bankList
+  };
+}

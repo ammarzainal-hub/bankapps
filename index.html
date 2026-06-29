@@ -6623,15 +6623,21 @@ return Tn.register(Un,$o,go,t),Tn.helpers={...Hi},Tn._adapters=In,Tn.Animation=A
     .sidebar-bank-item .bank-action-btn { background: none; border: none; color: var(--text-muted); font-size: 10px; padding: 2px 4px; cursor: pointer; border-radius: 4px; transition: all 0.15s; }
     .sidebar-bank-item .bank-action-btn:hover { color: var(--accent); background: var(--hover-bg); }
 
-    .sidebar-footer { padding: 16px; border-top: 1px solid var(--card-border); }
+    .sidebar-footer { padding: 12px 16px; border-top: 1px solid var(--card-border); }
     .sidebar-footer .balance-card {
       background: linear-gradient(135deg, #6366f1, #8b5cf6);
       border-radius: 14px;
-      padding: 14px;
+      padding: 12px 14px;
       color: #fff;
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
     }
-    .sidebar-footer .balance-card .amount { font-size: 18px; font-weight: 800; }
-    .sidebar-footer .balance-card .label { font-size: 10px; opacity: 0.7; text-transform: uppercase; letter-spacing: 0.1em; }
+    .sb-metric { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; }
+    .sb-metric .sb-icon { font-size: 13px; width: 18px; text-align: center; flex-shrink: 0; }
+    .sb-metric .sb-label { font-size: 10px; opacity: 0.7; text-transform: uppercase; letter-spacing: 0.08em; width: 42px; flex-shrink: 0; }
+    .sb-metric .sb-val { margin-left: auto; font-weight: 700; font-size: 13px; }
+    .sb-divider { border-top: 1px solid rgba(255,255,255,0.2); padding-top: 7px; margin-top: 2px; }
 
     .app-topbar {
       position: fixed;
@@ -6808,8 +6814,10 @@ return Tn.register(Un,$o,go,t),Tn.helpers={...Hi},Tn._adapters=In,Tn.Animation=A
   </nav>
   <div class="sidebar-footer">
     <div class="balance-card">
-      <div class="label">Jumlah Keseluruhan</div>
-      <div class="amount" id="sidebarGrandTotal">RM 0.00</div>
+      <div class="sb-metric"><span class="sb-icon">💰</span><span class="sb-label">Masuk</span><span class="sb-val tx-masuk" id="sbMasuk">RM 0.00</span></div>
+      <div class="sb-metric"><span class="sb-icon">💸</span><span class="sb-label">Keluar</span><span class="sb-val tx-keluar" id="sbKeluar">RM 0.00</span></div>
+      <div class="sb-metric sb-divider"><span class="sb-icon">⚖️</span><span class="sb-label">Net</span><span class="sb-val" id="sbNet">RM 0.00</span></div>
+      <div class="sb-metric"><span class="sb-icon">👛</span><span class="sb-label">Baki</span><span class="sb-val" id="sbBaki">RM 0.00</span></div>
     </div>
   </div>
 </aside>
@@ -6818,7 +6826,8 @@ return Tn.register(Un,$o,go,t),Tn.helpers={...Hi},Tn._adapters=In,Tn.Animation=A
   <button class="menu-toggle" onclick="toggleSidebar()"><i class="iconoir-menu"></i></button>
   <span class="topbar-title" id="topbarTitle">Ringkasan</span>
   <div class="topbar-right">
-    <button class="refresh-btn" onclick="handleRefresh()" title="Segarkan data"><i class="iconoir-refresh"></i></button>
+    <button class="refresh-btn" onclick="handleRefresh()" title="Segarkan data">🔄</button>
+    <button class="refresh-btn" id="autoRefreshBtn" onclick="toggleAutoRefresh()" title="Auto-refresh setiap 3 minit" style="font-size:14px">⌛</button>
     <select id="globalFilterMonth" onchange="onFilterChange()" style="min-width:130px">
       <option value="">Semua Bulan</option>
       <option value="1">Januari</option><option value="2">Februari</option><option value="3">Mac</option>
@@ -6840,7 +6849,8 @@ return Tn.register(Un,$o,go,t),Tn.helpers={...Hi},Tn._adapters=In,Tn.Animation=A
 <main class="app-main">
 
   <div class="page-content active" id="page-summary">
-    <div class="row g-4"><div class="col-12"><div class="row g-3" id="sumCardsGrid"></div></div></div>
+    <div class="row g-4"><div class="col-12"><div class="section-header"><span class="section-title">🏦 Akaun Bank</span></div><div class="row g-3" id="sumBankGrid"></div></div></div>
+    <div class="row g-4 mt-2"><div class="col-12"><div class="section-header"><span class="section-title">📊 Ringkasan</span></div><div class="row g-3" id="sumStatsGrid"></div></div></div>
     <div class="row g-4 mt-2">
       <div class="col-lg-6"><div class="chart-card"><div class="section-header"><span class="section-title">Masuk vs Keluar (Bulanan)</span></div><div class="chart-container-lg"><canvas id="sumBarChart"></canvas></div></div></div>
       <div class="col-lg-6"><div class="chart-card"><div class="section-header"><span class="section-title">Pecahan Kategori Keluar</span></div><div class="chart-container"><canvas id="sumPieChart"></canvas></div></div></div>
@@ -6883,6 +6893,7 @@ return Tn.register(Un,$o,go,t),Tn.helpers={...Hi},Tn._adapters=In,Tn.Animation=A
 
   <div class="page-content" id="page-all-tx">
     <div class="d-flex flex-wrap gap-2 mb-3 align-items-center">
+      <input type="text" id="allTxSearch" placeholder="🔍 Cari nota/kategori..." oninput="onAllTxSearch()" style="background:var(--input-bg);border:1px solid var(--input-border);color:var(--text-primary);border-radius:10px;padding:8px 14px;font-size:12px;font-weight:600;min-width:180px;flex:1;max-width:260px;outline:none">
       <select id="allTxFilterBank" onchange="loadAllTransactions()" style="background:var(--input-bg);border:1px solid var(--input-border);color:var(--text-primary);border-radius:10px;padding:8px 14px;font-size:12px;font-weight:600"><option value="">Semua Bank</option></select>
       <input type="date" id="allTxFilterDate" onchange="loadAllTransactions()" style="background:var(--input-bg);border:1px solid var(--input-border);color:var(--text-primary);border-radius:10px;padding:8px 14px;font-size:12px;font-weight:600">
       <button class="btn btn-outline btn-sm" onclick="document.getElementById('allTxFilterDate').value='';loadAllTransactions()">Reset</button>
@@ -6945,6 +6956,34 @@ return Tn.register(Un,$o,go,t),Tn.helpers={...Hi},Tn._adapters=In,Tn.Animation=A
 
   <div class="page-content" id="page-chart">
     <div class="row g-4">
+      <div class="col-12">
+        <div class="chart-card">
+          <div class="section-header" style="flex-wrap:wrap;gap:10px">
+            <span class="section-title">📅 Perbandingan Bulan</span>
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+              <select id="cmpMonthA" onchange="loadCompareChart()" style="background:var(--input-bg);border:1px solid var(--input-border);color:var(--text-primary);border-radius:8px;padding:6px 10px;font-size:11px;font-weight:600">
+                <option value="1">Jan</option><option value="2">Feb</option><option value="3">Mac</option><option value="4">Apr</option><option value="5">Mei</option><option value="6" selected>Jun</option><option value="7">Jul</option><option value="8">Ogos</option><option value="9">Sep</option><option value="10">Okt</option><option value="11">Nov</option><option value="12">Dis</option>
+              </select>
+              <select id="cmpYearA" onchange="loadCompareChart()" style="background:var(--input-bg);border:1px solid var(--input-border);color:var(--text-primary);border-radius:8px;padding:6px 10px;font-size:11px;font-weight:600;min-width:70px">
+                <option value="2025">2025</option><option value="2026" selected>2026</option><option value="2027">2027</option>
+              </select>
+              <span style="color:var(--text-muted);font-size:11px;font-weight:700">vs</span>
+              <select id="cmpMonthB" onchange="loadCompareChart()" style="background:var(--input-bg);border:1px solid var(--input-border);color:var(--text-primary);border-radius:8px;padding:6px 10px;font-size:11px;font-weight:600">
+                <option value="1">Jan</option><option value="2">Feb</option><option value="3">Mac</option><option value="4">Apr</option><option value="5">Mei</option><option value="6">Jun</option><option value="7">Jul</option><option value="8">Ogos</option><option value="9">Sep</option><option value="10">Okt</option><option value="11">Nov</option><option value="12">Dis</option>
+              </select>
+              <select id="cmpYearB" onchange="loadCompareChart()" style="background:var(--input-bg);border:1px solid var(--input-border);color:var(--text-primary);border-radius:8px;padding:6px 10px;font-size:11px;font-weight:600;min-width:70px">
+                <option value="2025" selected>2025</option><option value="2026">2026</option><option value="2027">2027</option>
+              </select>
+            </div>
+          </div>
+          <div class="chart-container-lg"><canvas id="chartMonthCompare"></canvas></div>
+        </div>
+      </div>
+    </div>
+    <div class="row g-4 mt-2">
+      <div class="col-12"><div class="chart-card"><div class="section-header"><span class="section-title">💹 Trend Baki Bank (Tahunan)</span></div><div class="chart-container-lg"><canvas id="chartCashflow"></canvas></div></div></div>
+    </div>
+    <div class="row g-4 mt-2">
       <div class="col-lg-6"><div class="chart-card"><div class="section-header"><span class="section-title">Masuk vs Keluar (Mengikut Bank)</span></div><div class="chart-container-lg"><canvas id="chartMasukKeluar"></canvas></div></div></div>
       <div class="col-lg-6"><div class="chart-card"><div class="section-header"><span class="section-title">Trend Baki Bank</span></div><div class="chart-container-lg"><canvas id="chartBakiTrend"></canvas></div></div></div>
       <div class="col-lg-6"><div class="chart-card"><div class="section-header"><span class="section-title">Pecahan Kategori Wang Masuk</span></div><div class="chart-container"><canvas id="chartPieMasuk"></canvas></div></div></div>
@@ -7573,7 +7612,7 @@ function getBankIconHtml(name, size) {
 }
 
 var sumBarChart, sumPieChart, bankTrendChart;
-var chartMasukKeluar, chartBakiTrend, chartPieMasuk, chartPieKeluar;
+var chartMasukKeluar, chartBakiTrend, chartPieMasuk, chartPieKeluar, chartCashflow, chartMonthCompare;
 var sidebarCharts = {};
 
 var BANK_COLORS = {
@@ -7653,7 +7692,7 @@ function switchPage(page) {
   else if (page === 'all-tx') loadAllTransactions();
   else if (page === 'add-tx') initAddTxPage();
   else if (page === 'transfer') initTransferPage();
-  else if (page === 'chart') loadChartData();
+  else if (page === 'chart') { loadChartData(); var cm = (new Date()).getMonth()+1; document.getElementById('cmpMonthA').value = cm; document.getElementById('cmpMonthB').value = cm; loadCompareChart(); }
   else if (page === 'settings') initSettingsPage();
   else if (page === 'bulk') initBulkPage();
 }
@@ -7740,6 +7779,26 @@ function handleRefresh() {
   }
 }
 
+var autoRefreshInterval = null;
+var autoRefreshOn = false;
+function toggleAutoRefresh() {
+  autoRefreshOn = !autoRefreshOn;
+  var btn = document.getElementById('autoRefreshBtn');
+  if (autoRefreshOn) {
+    btn.style.color = '#fff';
+    btn.style.background = 'var(--accent)';
+    btn.style.borderColor = 'var(--accent)';
+    autoRefreshInterval = setInterval(function() { handleRefresh(); }, 180000);
+    showToast('Auto-refresh ON (3 minit)', 'info');
+  } else {
+    btn.style.color = 'var(--text-secondary)';
+    btn.style.background = 'var(--input-bg)';
+    btn.style.borderColor = 'var(--input-border)';
+    clearInterval(autoRefreshInterval);
+    autoRefreshInterval = null;
+  }
+}
+
 // ============================================================
 //   SIDEBAR MINI CHARTS
 // ============================================================
@@ -7806,29 +7865,62 @@ function loadAllData() {
 }
 
 function updateSidebarTotal(s) {
-  var gb = 0; if (s.summary && s.summary.banks) { for (var b in s.summary.banks) gb += s.summary.banks[b].bakiSemasa || 0; }
-  document.getElementById('sidebarGrandTotal').innerText = 'RM ' + fRM(gb);
+  var tm = 0, tk = 0, gb = 0;
+  if (s.summary && s.summary.banks) {
+    for (var b in s.summary.banks) {
+      tm += s.summary.banks[b].totalMasuk || 0;
+      tk += s.summary.banks[b].totalKeluar || 0;
+      gb += s.summary.banks[b].bakiSemasa || 0;
+    }
+  }
+  document.getElementById('sbMasuk').innerText = '+RM ' + fRM(tm);
+  document.getElementById('sbKeluar').innerText = '-RM ' + fRM(tk);
+  var net = tm - tk;
+  document.getElementById('sbNet').innerText = (net >= 0 ? 'RM ' : '-RM ') + fRM(Math.abs(net));
+  document.getElementById('sbBaki').innerText = 'RM ' + fRM(gb);
 }
 
 function renderSummaryCards(summary) {
-  var grid = document.getElementById('sumCardsGrid'); if (!summary || !summary.bankList) return;
-  var html = '', gb = 0;
+  var bankGrid = document.getElementById('sumBankGrid');
+  var statsGrid = document.getElementById('sumStatsGrid');
+  if (!summary || !summary.bankList) return;
+  var bankHtml = '', statsHtml = '', gb = 0, totalTx = 0, totalKeluarAll = 0;
   summary.bankList.forEach(function(bank) {
     var color = getBankColor(bank), bd = summary.summary&&summary.summary.banks[bank] ? summary.summary.banks[bank] : {};
-    var tm = bd.totalMasuk||0, tk = bd.totalKeluar||0, bs = bd.bakiSemasa||0; gb += bs;
-    html += '<div class="col-md-6 col-lg-4 col-xl-3"><div class="stat-card">';
-    html += '<div class="d-flex align-items-center justify-content-between mb-3">' + getBankIconHtml(bank,36);
-    html += '<span style="font-size:10px;font-weight:700;background:'+color.base+'20;color:'+color.base+';padding:4px 10px;border-radius:20px">'+bank+'</span></div>';
-    html += '<div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px">Baki Semasa</div>';
-    html += '<div style="font-size:22px;font-weight:800;color:'+(bs>=0?'var(--success)':'var(--danger)')+'">RM '+fRM(bs)+'</div>';
-    html += '<div class="d-flex justify-content-between mt-3" style="font-size:11px;font-weight:700"><span class="tx-masuk">+RM '+fRM(tm)+'</span><span class="tx-keluar">-RM '+fRM(tk)+'</span></div>';
-    html += '</div></div>';
+    var tm = bd.totalMasuk||0, tk = bd.totalKeluar||0, bs = bd.bakiSemasa||0; gb += bs; totalTx += (bd.count||0); totalKeluarAll += tk;
+    bankHtml += '<div class="col-md-6 col-lg-4 col-xl-3"><div class="stat-card">';
+    bankHtml += '<div class="d-flex align-items-center justify-content-between mb-3">' + getBankIconHtml(bank,36);
+    bankHtml += '<span style="font-size:10px;font-weight:700;background:'+color.base+'20;color:'+color.base+';padding:4px 10px;border-radius:20px">'+bank+'</span></div>';
+    bankHtml += '<div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px">Baki Semasa</div>';
+    bankHtml += '<div style="font-size:22px;font-weight:800;color:'+(bs>=0?'var(--success)':'var(--danger)')+'">RM '+fRM(bs)+'</div>';
+    bankHtml += '<div class="d-flex justify-content-between mt-3" style="font-size:11px;font-weight:700"><span class="tx-masuk">+RM '+fRM(tm)+'</span><span class="tx-keluar">-RM '+fRM(tk)+'</span></div>';
+    bankHtml += '</div></div>';
   });
-  html += '<div class="col-md-6 col-lg-4 col-xl-3"><div class="stat-card" style="background:linear-gradient(135deg,#6366f1,#4f46e5);border:none;color:#fff">';
-  html += '<div style="font-size:10px;font-weight:700;opacity:0.7;text-transform:uppercase;letter-spacing:0.15em;margin-bottom:4px">Jumlah Keseluruhan</div>';
-  html += '<div style="font-size:22px;font-weight:800">RM '+fRM(gb)+'</div>';
-  html += '<div class="d-flex justify-content-between mt-3" style="font-size:11px;font-weight:600;opacity:0.7"><span>Semua Bank</span><span>'+summary.bankList.length+' Bank</span></div></div></div>';
-  grid.innerHTML = html;
+  var now = new Date();
+  var filterMonth = document.getElementById('globalFilterMonth').value || (now.getMonth() + 1);
+  var filterYear = document.getElementById('globalFilterYear').value || now.getFullYear();
+  var daysInMonth = new Date(filterYear, filterMonth, 0).getDate();
+  var daysPassed = (parseInt(filterYear) === now.getFullYear() && parseInt(filterMonth) === (now.getMonth() + 1)) ? now.getDate() : daysInMonth;
+  var dailyAvg = daysPassed > 0 ? totalKeluarAll / daysPassed : 0;
+  var projected = dailyAvg * daysInMonth;
+  statsHtml += '<div class="col-md-6 col-lg-4 col-xl-4"><div class="stat-card">';
+  statsHtml += '<div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px">📋 Jumlah Transaksi</div>';
+  statsHtml += '<div style="font-size:28px;font-weight:800;color:var(--text-primary)">'+totalTx+'</div>';
+  statsHtml += '<div style="font-size:10px;font-weight:600;color:var(--text-muted);margin-top:4px">rekod untuk tempoh dipilih</div>';
+  statsHtml += '</div></div>';
+  statsHtml += '<div class="col-md-6 col-lg-4 col-xl-4"><div class="stat-card" style="background:linear-gradient(135deg,#ef4444,#f97316);border:none;color:#fff">';
+  statsHtml += '<div style="font-size:10px;font-weight:700;opacity:0.7;text-transform:uppercase;letter-spacing:0.15em;margin-bottom:4px">📊 Purata Belanja Harian</div>';
+  statsHtml += '<div style="font-size:22px;font-weight:800">RM '+fRM(dailyAvg)+'<span style="font-size:11px;opacity:0.7"> /hari</span></div>';
+  statsHtml += '<div style="font-size:10px;font-weight:700;opacity:0.5;text-transform:uppercase;letter-spacing:0.1em;margin-top:8px;margin-bottom:2px">📈 Unjuran Bulan Ini</div>';
+  statsHtml += '<div style="font-size:15px;font-weight:700;opacity:0.85">RM '+fRM(projected)+'</div>';
+  statsHtml += '<div style="font-size:9px;font-weight:600;opacity:0.5;margin-top:4px">Berdasarkan '+daysPassed+'/'+daysInMonth+' hari</div>';
+  statsHtml += '</div></div>';
+  statsHtml += '<div class="col-md-6 col-lg-4 col-xl-4"><div class="stat-card" style="background:linear-gradient(135deg,#6366f1,#4f46e5);border:none;color:#fff">';
+  statsHtml += '<div style="font-size:10px;font-weight:700;opacity:0.7;text-transform:uppercase;letter-spacing:0.15em;margin-bottom:4px">💰 Jumlah Keseluruhan</div>';
+  statsHtml += '<div style="font-size:22px;font-weight:800">RM '+fRM(gb)+'</div>';
+  statsHtml += '<div class="d-flex justify-content-between mt-3" style="font-size:11px;font-weight:600;opacity:0.7"><span>Semua Bank</span><span>'+summary.bankList.length+' Bank</span></div></div></div>';
+  bankGrid.innerHTML = bankHtml;
+  statsGrid.innerHTML = statsHtml;
 }
 
 function renderSumBarChart(summary) {
@@ -8015,16 +8107,31 @@ function confirmBankDelete(rowId) {
   confirmDelete(rowId, tx.jenis || '', fRM(tx.amount), !!tx.transferID, tx.bank || activeBank, 'bank');
 }
 
+var allTxSearchTerm = '';
+function onAllTxSearch() {
+  allTxSearchTerm = document.getElementById('allTxSearch').value.toLowerCase().trim();
+  currentAllTxPage = 1;
+  renderAllTxTable();
+}
+
 function renderAllTxTable() {
+  var filtered = allTransactions;
+  if (allTxSearchTerm) {
+    filtered = allTransactions.filter(function(t) {
+      return (t.note && t.note.toLowerCase().indexOf(allTxSearchTerm) !== -1) ||
+             (t.category && t.category.toLowerCase().indexOf(allTxSearchTerm) !== -1) ||
+             (t.jenis && t.jenis.toLowerCase().indexOf(allTxSearchTerm) !== -1);
+    });
+  }
   var tbody = document.getElementById('allTxTableBody');
-  var totalRows = allTransactions.length;
+  var totalRows = filtered.length;
   var totalPages = Math.ceil(totalRows / PAGE_SIZE);
   if (currentAllTxPage > totalPages) currentAllTxPage = Math.max(1, totalPages);
 
   var start = (currentAllTxPage - 1) * PAGE_SIZE;
-  var pageData = allTransactions.slice(start, start + PAGE_SIZE);
+  var pageData = filtered.slice(start, start + PAGE_SIZE);
 
-  if (allTransactions.length===0) {
+  if (totalRows===0) {
     tbody.innerHTML='<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--text-muted);font-weight:700;font-size:11px;text-transform:uppercase">Tiada Rekod</td></tr>';
   } else {
     var html = '';
@@ -8359,9 +8466,65 @@ function submitBulkData() {
 function loadChartData() {
   showLoader(true); var y=document.getElementById('globalFilterYear').value;
   google.script.run
-    .withSuccessHandler(function(data){renderChartMasukKeluar(data);renderChartBakiTrendChart(data);renderChartPieMasuk(data);renderChartPieKeluar(data);showLoader(false);})
+    .withSuccessHandler(function(data){renderChartCashflow(data);renderChartMasukKeluar(data);renderChartBakiTrendChart(data);renderChartPieMasuk(data);renderChartPieKeluar(data);showLoader(false);})
     .withFailureHandler(function(e){showLoader(false);showToast('Error: '+e.message,'error');})
     .getFullDataForCharts(y);
+}
+
+function renderChartCashflow(data) {
+  var ctx=document.getElementById('chartCashflow');if(!ctx)return;if(chartCashflow)chartCashflow.destroy();
+  var datasets=data.bankList.map(function(bank){
+    var color=getBankColor(bank);var yd=data.yearlySummary[bank]||{masuk:Array(12).fill(0),keluar:Array(12).fill(0)};
+    var initBal=(data.balances&&data.balances[bank])?data.balances[bank]:0;
+    var running=initBal;var net=yd.masuk.map(function(m,i){running+=(m-(yd.keluar[i]||0));return running;});
+    return{label:bank,data:net,borderColor:color.base,backgroundColor:color.base+'20',borderWidth:2,fill:!1,tension:.3,pointRadius:3};
+  });
+  chartCashflow=new Chart(ctx,{type:'line',data:{labels:MONTHS,datasets:datasets},options:{responsive:!0,maintainAspectRatio:!1,
+    plugins:{legend:{position:'bottom',labels:{boxWidth:10,padding:12,font:{size:11},color:'#8b8fa3'}}},
+    scales:{y:{ticks:{callback:function(v){return'RM '+v;}},grid:{color:'#272a33'}},x:{grid:{display:!1}}}}});}
+
+function loadCompareChart() {
+  var ma = document.getElementById('cmpMonthA').value, ya = document.getElementById('cmpYearA').value;
+  var mb = document.getElementById('cmpMonthB').value, yb = document.getElementById('cmpYearB').value;
+  google.script.run
+    .withSuccessHandler(function(r) { renderCompareChart(r); })
+    .withFailureHandler(function(e) { showToast('Error: '+e.message,'error'); })
+    .getMonthComparisonData(ma, ya, mb, yb);
+}
+
+function renderCompareChart(data) {
+  var ctx = document.getElementById('chartMonthCompare'); if (!ctx) return;
+  if (chartMonthCompare) chartMonthCompare.destroy();
+  var banks = data.bankList || [];
+  var ma = document.getElementById('cmpMonthA'), ya = document.getElementById('cmpYearA');
+  var mb = document.getElementById('cmpMonthB'), yb = document.getElementById('cmpYearB');
+  var labelA = MONTHS[parseInt(ma.value)-1] + ' ' + ya.value;
+  var labelB = MONTHS[parseInt(mb.value)-1] + ' ' + yb.value;
+  var masukA = [], keluarA = [], masukB = [], keluarB = [], labels = [];
+  banks.forEach(function(bank) {
+    labels.push(bank);
+    var da = data.monthA && data.monthA.banks[bank] ? data.monthA.banks[bank] : {};
+    var db = data.monthB && data.monthB.banks[bank] ? data.monthB.banks[bank] : {};
+    masukA.push(da.totalMasuk || 0); keluarA.push(da.totalKeluar || 0);
+    masukB.push(db.totalMasuk || 0); keluarB.push(db.totalKeluar || 0);
+  });
+  chartMonthCompare = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [
+        { label: 'Masuk ' + labelA, data: masukA, backgroundColor: '#10b98180', borderColor: '#10b981', borderWidth: 1, borderRadius: 4 },
+        { label: 'Masuk ' + labelB, data: masukB, backgroundColor: '#6366f180', borderColor: '#6366f1', borderWidth: 1, borderRadius: 4 },
+        { label: 'Keluar ' + labelA, data: keluarA.map(function(v) { return -v; }), backgroundColor: '#ef444480', borderColor: '#ef4444', borderWidth: 1, borderRadius: 4 },
+        { label: 'Keluar ' + labelB, data: keluarB.map(function(v) { return -v; }), backgroundColor: '#f9731680', borderColor: '#f97316', borderWidth: 1, borderRadius: 4 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, padding: 12, font: { size: 11 }, color: '#8b8fa3' } } },
+      scales: { y: { ticks: { callback: function(v) { return 'RM ' + Math.abs(v); } }, grid: { color: '#272a33' } }, x: { grid: { display: false } } }
+    }
+  });
 }
 
 function renderChartMasukKeluar(data) {
