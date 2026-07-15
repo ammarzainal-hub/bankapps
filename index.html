@@ -6793,10 +6793,10 @@ return Tn.register(Un,$o,go,t),Tn.helpers={...Hi},Tn._adapters=In,Tn.Animation=A
       </button>
     </div>
     <div class="nav-item">
-      <button class="nav-link" data-bs-toggle="collapse" data-bs-target="#subAccounts" aria-expanded="true">
+      <button class="nav-link" data-bs-toggle="collapse" data-bs-target="#subAccounts" aria-expanded="false">
         <i class="iconoir-bank"></i> Akaun Bank
       </button>
-      <div class="collapse show submenu" id="subAccounts">
+      <div class="collapse submenu" id="subAccounts">
         <div id="sidebarBankList"></div>
       </div>
     </div>
@@ -6952,7 +6952,7 @@ return Tn.register(Un,$o,go,t),Tn.helpers={...Hi},Tn._adapters=In,Tn.Animation=A
   <div class="page-content" id="page-bulk">
     <div class="d-flex flex-wrap gap-3 mb-3 align-items-center">
       <div style="display:flex;align-items:center;gap:8px;background:var(--card-bg);border:1px solid var(--card-border);padding:10px 16px;border-radius:14px">
-        <span style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase">Tarikh:</span>
+        <span style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase">Tarikh Default:</span>
         <input type="date" id="bulkDateMain" style="background:transparent;border:none;color:var(--text-primary);font-weight:600;outline:none;font-size:14px">
       </div>
       <button class="btn btn-outline" onclick="addBulkRow()">+ Tambah Baris</button>
@@ -8453,9 +8453,12 @@ function initBulkPage() {
   var bd=document.getElementById('bulkDateMain'); if(!bd.value)bd.value=todayLocal();
   var c=document.getElementById('bulkRowsContainer');c.innerHTML='';for(var i=0;i<3;i++)addBulkRow();
 }
+var bulkRowSeq = 0;
 function addBulkRow() {
-  var c=document.getElementById('bulkRowsContainer'),idx=c.children.length;
-  var h='<div class="bulk-row"><select id="bulkBank_'+idx+'" style="min-width:130px">';
+  var c=document.getElementById('bulkRowsContainer'),idx=bulkRowSeq++;
+  var defDate=document.getElementById('bulkDateMain').value||todayLocal();
+  var h='<div class="bulk-row"><input type="date" id="bulkDate_'+idx+'" value="'+defDate+'" style="min-width:135px">';
+  h+='<select id="bulkBank_'+idx+'" style="min-width:130px">';
   bankList.forEach(function(b){h+='<option value="'+escapeHtml(b)+'">'+escapeHtml(b)+'</option>';});
   h+='</select><select id="bulkJenis_'+idx+'" onchange="onBulkJenisChange('+idx+')" style="min-width:100px"><option value="Masuk">Masuk</option><option value="Keluar">Keluar</option></select>';
   h+='<select id="bulkCategory_'+idx+'" style="min-width:140px"></select>';
@@ -8473,11 +8476,23 @@ function updateBulkCategories(idx) {
 function submitBulkData() {
   if (submitting.bulk) return;
   var bulkBtn = document.querySelector('#page-bulk .btn.btn-primary');
-  var c=document.getElementById('bulkRowsContainer'),rows=[],bd=document.getElementById('bulkDateMain').value;
-  if(!bd){showToast('Sila pilih tarikh','error');return;}
-  for(var i=0;i<c.children.length;i++){
-    var r={date:bd,bank:document.getElementById('bulkBank_'+i)?document.getElementById('bulkBank_'+i).value:'',jenis:document.getElementById('bulkJenis_'+i)?document.getElementById('bulkJenis_'+i).value:'',category:document.getElementById('bulkCategory_'+i)?document.getElementById('bulkCategory_'+i).value:'',amount:parseFloat(document.getElementById('bulkAmount_'+i)?document.getElementById('bulkAmount_'+i).value:0),note:document.getElementById('bulkNote_'+i)?document.getElementById('bulkNote_'+i).value:'',transferID:''};
-    if(r.amount&&r.amount>0)rows.push(r);
+  var c=document.getElementById('bulkRowsContainer'),rows=[];
+  var rowEls=c.querySelectorAll('.bulk-row');
+  for(var i=0;i<rowEls.length;i++){
+    var el=rowEls[i];
+    var amount=parseFloat((el.querySelector('input[type=number]')||{value:''}).value);
+    if(!amount||amount<=0)continue;
+    var dateVal=(el.querySelector('input[type=date]')||{value:''}).value;
+    if(!dateVal){showToast('Baris '+(i+1)+': sila pilih tarikh','error');return;}
+    rows.push({
+      date:dateVal,
+      bank:el.querySelector('select[id^="bulkBank_"]').value,
+      jenis:el.querySelector('select[id^="bulkJenis_"]').value,
+      category:el.querySelector('select[id^="bulkCategory_"]').value,
+      amount:amount,
+      note:el.querySelector('input[type=text]').value,
+      transferID:''
+    });
   }
   if(rows.length===0){showToast('Tiada data untuk disimpan','error');return;}
   submitting.bulk = true;

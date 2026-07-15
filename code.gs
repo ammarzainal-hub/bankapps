@@ -87,6 +87,13 @@ function getSheetOrThrow(name) {
   return sheet;
 }
 
+function toStoredDate(dateStr) {
+  var now = new Date();
+  var dateOnly = formatRowDate(new Date(dateStr));
+  var timeStr = Utilities.formatDate(now, 'GMT+8', 'HH:mm:ss');
+  return new Date(dateOnly + 'T' + timeStr + '+08:00');
+}
+
 function generateTransferID() {
   return 'T' + new Date().getTime();
 }
@@ -543,7 +550,7 @@ function addTransactionCore(data) {
   if (!data.amount || parseFloat(data.amount) <= 0) throw new Error('Amaun mesti lebih dari 0');
   if (!data.category) throw new Error('Kategori diperlukan');
 
-  var safeDate = new Date(data.date);
+  var safeDate = toStoredDate(data.date);
   var safeBank = sanitize(data.bank, 50);
   var safeJenis = sanitize(data.jenis, 50);
   var safeCategory = sanitize(data.category, 100);
@@ -553,6 +560,7 @@ function addTransactionCore(data) {
 
   var sheet = getSheetOrThrow(DATA_SHEET);
   sheet.appendRow([safeDate, safeBank, safeJenis, safeCategory, safeAmount, safeNote, safeTransferID, 0]);
+  sheet.getRange(sheet.getLastRow(), 1).setNumberFormat('dd/MM/yyyy HH:mm:ss');
 
   recalculateBalances(safeBank);
   invalidateCache(safeBank);
@@ -609,7 +617,6 @@ function updateTransactionCore(data) {
   if (!data.category) throw new Error('Kategori diperlukan');
 
   var safeRowId = parseInt(data.rowId);
-  var safeDate = new Date(data.date);
   var safeBank = sanitize(data.bank, 50);
   var safeJenis = sanitize(data.jenis, 50);
   var safeCategory = sanitize(data.category, 100);
@@ -628,9 +635,11 @@ function updateTransactionCore(data) {
   }
   var oldBank = oldRow[1] || '';
   var oldTransferID = (oldRow[6] || '').toString();
+  var safeDate = (formatRowDate(oldRow[0]) === String(data.date)) ? oldRow[0] : toStoredDate(data.date);
 
   sheet.getRange(safeRowId, 1, 1, 8)
     .setValues([[safeDate, safeBank, safeJenis, safeCategory, safeAmount, safeNote, safeTransferID, 0]]);
+  sheet.getRange(safeRowId, 1).setNumberFormat('dd/MM/yyyy HH:mm:ss');
 
   var banksToRecalc = {};
   banksToRecalc[safeBank] = true;
@@ -640,6 +649,7 @@ function updateTransactionCore(data) {
     var pair = findTransferPair(oldTransferID, safeRowId);
     if (pair) {
       sheet.getRange(pair.rowId, 1).setValue(safeDate);
+      sheet.getRange(pair.rowId, 1).setNumberFormat('dd/MM/yyyy HH:mm:ss');
       sheet.getRange(pair.rowId, 5).setValue(safeAmount);
       if (pair.bank) banksToRecalc[pair.bank] = true;
     }
@@ -749,7 +759,7 @@ function addBulkTransactions(rows) {
       if (!r.category) throw new Error('Baris ' + (i + 1) + ': Kategori diperlukan');
 
       toAppend.push([
-        new Date(r.date),
+        toStoredDate(r.date),
         sanitize(r.bank, 50),
         sanitize(r.jenis, 50),
         sanitize(r.category, 100),
@@ -762,7 +772,9 @@ function addBulkTransactions(rows) {
       banksToRecalc[r.bank] = true;
     }
 
-    sheet.getRange(sheet.getLastRow() + 1, 1, toAppend.length, 8).setValues(toAppend);
+    var startRow = sheet.getLastRow() + 1;
+    sheet.getRange(startRow, 1, toAppend.length, 8).setValues(toAppend);
+    sheet.getRange(startRow, 1, toAppend.length, 1).setNumberFormat('dd/MM/yyyy HH:mm:ss');
 
     var bankNames = Object.keys(banksToRecalc);
     recalculateBalancesMulti(bankNames);
