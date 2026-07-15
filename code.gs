@@ -38,7 +38,14 @@ function getCachedOrFetch(key, fetchFn) {
 function invalidateCache(bank, year) {
   try {
     var cache = CacheService.getScriptCache();
-    var yearsToClear = year ? [year] : [2025, 2026, 2027, 2028, 2029, 2030, 2031, 2032];
+    var yearsToClear;
+    if (year) {
+      yearsToClear = [year];
+    } else {
+      yearsToClear = [];
+      var maxYear = new Date().getFullYear() + 2;
+      for (var y = 2025; y <= maxYear; y++) yearsToClear.push(y);
+    }
     if (bank) {
       yearsToClear.forEach(function(y) {
         cache.remove('tx_' + bank + '_' + y);
@@ -76,6 +83,31 @@ function isValidDate(dateStr) {
 
 function generateTransferID() {
   return 'T' + new Date().getTime();
+}
+
+function withLock(fn) {
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    return fn();
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function formatRowDate(cell) {
+  return cell instanceof Date ? Utilities.formatDate(cell, 'GMT+8', 'yyyy-MM-dd') : String(cell || '');
+}
+
+function rowMatchesExpected(row, expected) {
+  if (!expected) return true;
+  var rowDate = formatRowDate(row[0]);
+  if (expected.date && rowDate !== expected.date) return false;
+  if (expected.bank && (row[1] || '').toString() !== expected.bank) return false;
+  if (expected.amount !== undefined && expected.amount !== null &&
+      Math.abs(parseFloat(row[4] || 0) - parseFloat(expected.amount)) > 0.005) return false;
+  if ((row[6] || '').toString() !== (expected.transferID || '').toString()) return false;
+  return true;
 }
 
 function doGet() {
@@ -121,6 +153,10 @@ function getAllCategories() {
 }
 
 function addCategory(type, name, icon) {
+  return withLock(function() { return addCategoryCore(type, name, icon); });
+}
+
+function addCategoryCore(type, name, icon) {
   if (!type || !name) return { status: 'error', message: 'Jenis kategori dan nama diperlukan' };
   var safeType = type.toLowerCase();
   if (safeType !== 'masuk' && safeType !== 'keluar') return { status: 'error', message: 'Jenis kategori tidak sah' };
@@ -145,6 +181,10 @@ function addCategory(type, name, icon) {
 }
 
 function deleteCategory(type, name) {
+  return withLock(function() { return deleteCategoryCore(type, name); });
+}
+
+function deleteCategoryCore(type, name) {
   if (!type || !name) return { status: 'error', message: 'Jenis kategori dan nama diperlukan' };
   var safeType = type.toLowerCase();
   if (safeType !== 'masuk' && safeType !== 'keluar') return { status: 'error', message: 'Jenis kategori tidak sah' };
@@ -164,12 +204,14 @@ function deleteCategory(type, name) {
   if (!sheet) return { status: 'error', message: 'Tab ' + sheetName + ' tidak dijumpai' };
 
   var lastRow = sheet.getLastRow();
-  for (var i = 2; i <= lastRow; i++) {
-    var cellVal = sheet.getRange(i, 1).getValue();
-    if (cellVal && cellVal.toString().trim() === name) {
-      sheet.deleteRow(i);
-      invalidateCache();
-      return { status: 'success', message: 'Kategori ' + name + ' berjaya dipadam' };
+  if (lastRow >= 2) {
+    var vals = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+    for (var i = 0; i < vals.length; i++) {
+      if (vals[i][0] && vals[i][0].toString().trim() === name) {
+        sheet.deleteRow(i + 2);
+        invalidateCache();
+        return { status: 'success', message: 'Kategori ' + name + ' berjaya dipadam' };
+      }
     }
   }
 
@@ -221,6 +263,10 @@ function getConfig() {
 }
 
 function saveConfig(initialBalances, initialIcons) {
+  return withLock(function() { return saveConfigCore(initialBalances, initialIcons); });
+}
+
+function saveConfigCore(initialBalances, initialIcons) {
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CONFIG_SHEET);
   if (!sheet) return { status: 'error', message: 'Tab KONFIG tidak dijumpai' };
 
@@ -248,6 +294,10 @@ function saveConfig(initialBalances, initialIcons) {
 // ============================================================
 
 function addBank(bankName, initialBalance, icon) {
+  return withLock(function() { return addBankCore(bankName, initialBalance, icon); });
+}
+
+function addBankCore(bankName, initialBalance, icon) {
   var safeName = sanitize(bankName, 50);
   if (!safeName) return { status: 'error', message: 'Nama bank diperlukan' };
 
@@ -276,6 +326,10 @@ function addBank(bankName, initialBalance, icon) {
 }
 
 function updateBankLabel(oldName, newName, newIcon) {
+  return withLock(function() { return updateBankLabelCore(oldName, newName, newIcon); });
+}
+
+function updateBankLabelCore(oldName, newName, newIcon) {
   if (!oldName || !newName) return { status: 'error', message: 'Nama lama dan baru diperlukan' };
   if (oldName === newName) return { status: 'error', message: 'Nama bank tidak berubah' };
 
@@ -304,11 +358,17 @@ function updateBankLabel(oldName, newName, newIcon) {
 
   var dataSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(DATA_SHEET);
   if (dataSheet && dataSheet.getLastRow() >= 2) {
-    var dataLastRow = dataSheet.getLastRow();
-    for (var i = 2; i <= dataLastRow; i++) {
-      var cellVal = dataSheet.getRange(i, 2).getValue();
-      if (cellVal === oldName) {
-        dataSheet.getRange(i, 2).setValue(newName);
+    var bankCol = dataSheet.getRange(2, 2, dataSheet.getLastRow() - 1, 1).getValues();
+    var runStart = -1;
+    for (var i = 0; i <= bankCol.length; i++) {
+      var isMatch = i < bankCol.length && bankCol[i][0] === oldName;
+      if (isMatch && runStart === -1) runStart = i;
+      if (!isMatch && runStart !== -1) {
+        var runLen = i - runStart;
+        var vals = [];
+        for (var k = 0; k < runLen; k++) vals.push([newName]);
+        dataSheet.getRange(runStart + 2, 2, runLen, 1).setValues(vals);
+        runStart = -1;
       }
     }
   }
@@ -318,6 +378,10 @@ function updateBankLabel(oldName, newName, newIcon) {
 }
 
 function updateBankIcon(bankName, icon) {
+  return withLock(function() { return updateBankIconCore(bankName, icon); });
+}
+
+function updateBankIconCore(bankName, icon) {
   var config = getConfigDirect();
   if (config.bankList.indexOf(bankName) === -1) {
     return { status: 'error', message: 'Bank ' + bankName + ' tidak wujud' };
@@ -325,12 +389,14 @@ function updateBankIcon(bankName, icon) {
 
   var configSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CONFIG_SHEET);
   var lastRow = configSheet.getLastRow();
-  for (var i = 2; i <= lastRow; i++) {
-    var key = configSheet.getRange(i, 1).getValue();
-    if (key === 'BakiAwal_' + bankName) {
-      configSheet.getRange(i, 3).setValue(icon || '');
-      invalidateCache();
-      return { status: 'success', message: 'Ikon bank dikemaskini' };
+  if (lastRow >= 2) {
+    var keys = configSheet.getRange(2, 1, lastRow - 1, 1).getValues();
+    for (var i = 0; i < keys.length; i++) {
+      if (keys[i][0] === 'BakiAwal_' + bankName) {
+        configSheet.getRange(i + 2, 3).setValue(icon || '');
+        invalidateCache();
+        return { status: 'success', message: 'Ikon bank dikemaskini' };
+      }
     }
   }
 
@@ -338,6 +404,10 @@ function updateBankIcon(bankName, icon) {
 }
 
 function deleteBank(bankName) {
+  return withLock(function() { return deleteBankCore(bankName); });
+}
+
+function deleteBankCore(bankName) {
   var config = getConfigDirect();
   if (config.bankList.indexOf(bankName) === -1) {
     return { status: 'error', message: 'Bank ' + bankName + ' tidak wujud' };
@@ -381,7 +451,7 @@ function getTransactions(month, year, bank, jenis, day) {
       .map(function(row, index) {
         return {
           rowId: index + 2,
-          date: row[0] instanceof Date ? Utilities.formatDate(row[0], 'GMT+8', 'yyyy-MM-dd') : String(row[0] || ''),
+          date: formatRowDate(row[0]),
           bank: row[1] || '',
           jenis: row[2] || '',
           category: row[3] || '',
@@ -432,7 +502,7 @@ function getAllTransactions(bank) {
     .map(function(row, index) {
       return {
         rowId: index + 2,
-        date: row[0] instanceof Date ? Utilities.formatDate(row[0], 'GMT+8', 'yyyy-MM-dd') : String(row[0] || ''),
+        date: formatRowDate(row[0]),
         bank: row[1] || '',
         jenis: row[2] || '',
         category: row[3] || '',
@@ -467,7 +537,7 @@ function getTransactionByRowId(rowId) {
 
   return {
     rowId: safeRowId,
-    date: row[0] instanceof Date ? Utilities.formatDate(row[0], 'GMT+8', 'yyyy-MM-dd') : String(row[0] || ''),
+    date: formatRowDate(row[0]),
     bank: row[1] || '',
     jenis: row[2] || '',
     category: row[3] || '',
@@ -483,6 +553,10 @@ function getTransactionByRowId(rowId) {
 // ============================================================
 
 function addTransaction(data) {
+  return withLock(function() { return addTransactionCore(data); });
+}
+
+function addTransactionCore(data) {
   if (!data) throw new Error('Data tidak diberikan');
   if (!isValidDate(data.date)) throw new Error('Tarikh tidak sah');
   if (!data.bank) throw new Error('Bank diperlukan');
@@ -498,28 +572,8 @@ function addTransaction(data) {
   var safeNote = sanitize(data.note, 500);
   var safeTransferID = sanitize(data.transferID, 100);
 
-  var config = getConfigDirect();
-  var bakiAwal = config.balances[safeBank] || 0;
-  var existingTx = getAllTransactions(safeBank);
-
-  var runningBaki = bakiAwal;
-  var insertIndex = existingTx.length;
-
-  for (var i = 0; i < existingTx.length; i++) {
-    if (new Date(safeDate) < new Date(existingTx[i].date)) {
-      insertIndex = i;
-      break;
-    }
-  }
-
-  for (var i = 0; i < insertIndex; i++) {
-    runningBaki = calcNextBaki(runningBaki, existingTx[i].jenis, existingTx[i].amount);
-  }
-
-  var newBaki = calcNextBaki(runningBaki, safeJenis, safeAmount);
-
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(DATA_SHEET);
-  sheet.appendRow([safeDate, safeBank, safeJenis, safeCategory, safeAmount, safeNote, safeTransferID, newBaki]);
+  sheet.appendRow([safeDate, safeBank, safeJenis, safeCategory, safeAmount, safeNote, safeTransferID, 0]);
 
   recalculateBalances(safeBank);
   invalidateCache(safeBank);
@@ -530,37 +584,43 @@ function addTransfer(data) {
   if (!data) throw new Error('Data tidak diberikan');
   if (!isValidDate(data.date)) throw new Error('Tarikh tidak sah');
   if (!data.fromBank || !data.toBank) throw new Error('Bank sumber dan destinasi diperlukan');
+  if (data.fromBank === data.toBank) throw new Error('Bank sumber dan destinasi tidak boleh sama');
   if (!data.amount || parseFloat(data.amount) <= 0) throw new Error('Amaun mesti lebih dari 0');
 
-  var transferID = generateTransferID();
-  var safeDate = new Date(data.date);
-  var safeAmount = parseFloat(data.amount);
-  var safeNote = sanitize(data.note, 500);
+  return withLock(function() {
+    var transferID = generateTransferID();
+    var safeAmount = parseFloat(data.amount);
+    var safeNote = sanitize(data.note, 500);
 
-  addTransaction({
-    date: data.date,
-    bank: data.fromBank,
-    jenis: 'Transfer Keluar',
-    category: 'Transfer',
-    amount: safeAmount,
-    note: safeNote || ('Transfer ke ' + data.toBank),
-    transferID: transferID
+    addTransactionCore({
+      date: data.date,
+      bank: data.fromBank,
+      jenis: 'Transfer Keluar',
+      category: 'Transfer',
+      amount: safeAmount,
+      note: safeNote || ('Transfer ke ' + data.toBank),
+      transferID: transferID
+    });
+
+    addTransactionCore({
+      date: data.date,
+      bank: data.toBank,
+      jenis: 'Transfer Masuk',
+      category: 'Transfer',
+      amount: safeAmount,
+      note: safeNote || ('Transfer dari ' + data.fromBank),
+      transferID: transferID
+    });
+
+    return { status: 'success', message: 'Transfer berjaya direkodkan' };
   });
-
-  addTransaction({
-    date: data.date,
-    bank: data.toBank,
-    jenis: 'Transfer Masuk',
-    category: 'Transfer',
-    amount: safeAmount,
-    note: safeNote || ('Transfer dari ' + data.fromBank),
-    transferID: transferID
-  });
-
-  return { status: 'success', message: 'Transfer berjaya direkodkan' };
 }
 
 function updateTransaction(data) {
+  return withLock(function() { return updateTransactionCore(data); });
+}
+
+function updateTransactionCore(data) {
   if (!data) throw new Error('Data tidak diberikan');
   if (!data.rowId) throw new Error('ID transaksi diperlukan');
   if (!isValidDate(data.date)) throw new Error('Tarikh tidak sah');
@@ -579,18 +639,36 @@ function updateTransaction(data) {
   var safeTransferID = sanitize(data.transferID || '', 100);
 
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(DATA_SHEET);
+  if (isNaN(safeRowId) || safeRowId < 2 || safeRowId > sheet.getLastRow()) {
+    throw new Error('Transaksi tidak dijumpai. Sila refresh dan cuba lagi.');
+  }
 
   var oldRow = sheet.getRange(safeRowId, 1, 1, 8).getValues()[0];
+  if (data.expected && !rowMatchesExpected(oldRow, data.expected)) {
+    throw new Error('Rekod telah berubah di tempat lain. Sila refresh dan cuba lagi.');
+  }
   var oldBank = oldRow[1] || '';
+  var oldTransferID = (oldRow[6] || '').toString();
 
   sheet.getRange(safeRowId, 1, 1, 8)
     .setValues([[safeDate, safeBank, safeJenis, safeCategory, safeAmount, safeNote, safeTransferID, 0]]);
 
-  recalculateBalances(safeBank);
-  if (safeBank !== oldBank) recalculateBalances(oldBank);
+  var banksToRecalc = {};
+  banksToRecalc[safeBank] = true;
+  if (oldBank) banksToRecalc[oldBank] = true;
 
-  invalidateCache(safeBank);
-  if (safeBank !== oldBank) invalidateCache(oldBank);
+  if (oldTransferID) {
+    var pair = findTransferPair(oldTransferID, safeRowId);
+    if (pair) {
+      sheet.getRange(pair.rowId, 1).setValue(safeDate);
+      sheet.getRange(pair.rowId, 5).setValue(safeAmount);
+      if (pair.bank) banksToRecalc[pair.bank] = true;
+    }
+  }
+
+  var recalcNames = Object.keys(banksToRecalc);
+  recalculateBalancesMulti(recalcNames);
+  recalcNames.forEach(function(b) { invalidateCache(b); });
 
   return { status: 'success', message: 'Transaksi berjaya dikemaskini' };
 }
@@ -599,38 +677,46 @@ function updateTransaction(data) {
 //   TRANSAKSI — PADAM
 // ============================================================
 
-function deleteTransaction(rowId, deletePair) {
-  if (!rowId) throw new Error('ID transaksi diperlukan');
-  var safeRowId = parseInt(rowId);
-  deletePair = deletePair || false;
+function deleteTransaction(rowId, deletePair, expected) {
+  return withLock(function() {
+    if (!rowId) throw new Error('ID transaksi diperlukan');
+    var safeRowId = parseInt(rowId);
+    deletePair = deletePair || false;
 
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(DATA_SHEET);
-  var row = sheet.getRange(safeRowId, 1, 1, 8).getValues()[0];
-  var bank = row[1] || '';
-  var transferID = row[6] || '';
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(DATA_SHEET);
+    if (isNaN(safeRowId) || safeRowId < 2 || safeRowId > sheet.getLastRow()) {
+      throw new Error('Transaksi tidak dijumpai. Sila refresh dan cuba lagi.');
+    }
 
-  if (deletePair && transferID) {
-    deleteTransferPair(transferID, safeRowId);
-  } else {
-    sheet.deleteRow(safeRowId);
-  }
+    var row = sheet.getRange(safeRowId, 1, 1, 8).getValues()[0];
+    if (expected && !rowMatchesExpected(row, expected)) {
+      throw new Error('Rekod telah berubah di tempat lain. Sila refresh dan cuba lagi.');
+    }
 
-  if (bank) {
-    recalculateBalances(bank);
-    invalidateCache(bank);
-  }
+    var bank = row[1] || '';
+    var transferID = row[6] || '';
 
-  if (transferID && !deletePair) {
-    var allBanks = getConfigDirect().bankList;
-    allBanks.forEach(function(b) {
-      if (b !== bank) {
-        recalculateBalances(b);
-        invalidateCache(b);
-      }
-    });
-  }
+    var pairBank = '';
+    if (transferID) {
+      var pair = findTransferPair(transferID, safeRowId);
+      if (pair) pairBank = pair.bank || '';
+    }
 
-  return { status: 'success', message: 'Transaksi berjaya dipadam' };
+    if (deletePair && transferID) {
+      deleteTransferPair(transferID, safeRowId);
+    } else {
+      sheet.deleteRow(safeRowId);
+    }
+
+    var banksToRecalc = {};
+    if (bank) banksToRecalc[bank] = true;
+    if (pairBank) banksToRecalc[pairBank] = true;
+    var recalcNames = Object.keys(banksToRecalc);
+    recalculateBalancesMulti(recalcNames);
+    recalcNames.forEach(function(b) { invalidateCache(b); });
+
+    return { status: 'success', message: 'Transaksi berjaya dipadam' };
+  });
 }
 
 function findTransferPair(transferID, excludeRowId) {
@@ -656,7 +742,6 @@ function deleteTransferPair(transferID, excludeRowId) {
     if (excludeRowId !== pair.rowId) {
       sheet.deleteRow(Math.min(excludeRowId, pair.rowId));
     }
-    if (pair.bank) recalculateBalances(pair.bank);
   } else {
     sheet.deleteRow(excludeRowId);
   }
@@ -671,38 +756,41 @@ function addBulkTransactions(rows) {
     throw new Error('Tiada data untuk ditambah');
   }
 
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(DATA_SHEET);
-  var config = getConfigDirect();
-  var banksToRecalc = {};
+  return withLock(function() {
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(DATA_SHEET);
+    var banksToRecalc = {};
+    var toAppend = [];
 
-  for (var i = 0; i < rows.length; i++) {
-    var r = rows[i];
-    if (!isValidDate(r.date)) throw new Error('Baris ' + (i + 1) + ': Tarikh tidak sah');
-    if (!r.bank) throw new Error('Baris ' + (i + 1) + ': Bank diperlukan');
-    if (!r.jenis) throw new Error('Baris ' + (i + 1) + ': Jenis transaksi diperlukan');
-    if (!r.amount || parseFloat(r.amount) <= 0) throw new Error('Baris ' + (i + 1) + ': Amaun mesti lebih dari 0');
-    if (!r.category) throw new Error('Baris ' + (i + 1) + ': Kategori diperlukan');
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i];
+      if (!isValidDate(r.date)) throw new Error('Baris ' + (i + 1) + ': Tarikh tidak sah');
+      if (!r.bank) throw new Error('Baris ' + (i + 1) + ': Bank diperlukan');
+      if (!r.jenis) throw new Error('Baris ' + (i + 1) + ': Jenis transaksi diperlukan');
+      if (!r.amount || parseFloat(r.amount) <= 0) throw new Error('Baris ' + (i + 1) + ': Amaun mesti lebih dari 0');
+      if (!r.category) throw new Error('Baris ' + (i + 1) + ': Kategori diperlukan');
 
-    sheet.appendRow([
-      new Date(r.date),
-      sanitize(r.bank, 50),
-      sanitize(r.jenis, 50),
-      sanitize(r.category, 100),
-      parseFloat(r.amount),
-      sanitize(r.note, 500),
-      sanitize(r.transferID || '', 100),
-      0
-    ]);
+      toAppend.push([
+        new Date(r.date),
+        sanitize(r.bank, 50),
+        sanitize(r.jenis, 50),
+        sanitize(r.category, 100),
+        parseFloat(r.amount),
+        sanitize(r.note, 500),
+        sanitize(r.transferID || '', 100),
+        0
+      ]);
 
-    banksToRecalc[r.bank] = true;
-  }
+      banksToRecalc[r.bank] = true;
+    }
 
-  for (var bank in banksToRecalc) {
-    recalculateBalances(bank);
-    invalidateCache(bank);
-  }
+    sheet.getRange(sheet.getLastRow() + 1, 1, toAppend.length, 8).setValues(toAppend);
 
-  return { status: 'success', message: rows.length + ' transaksi berjaya ditambah' };
+    var bankNames = Object.keys(banksToRecalc);
+    recalculateBalancesMulti(bankNames);
+    bankNames.forEach(function(bank) { invalidateCache(bank); });
+
+    return { status: 'success', message: rows.length + ' transaksi berjaya ditambah' };
+  });
 }
 
 // ============================================================
@@ -718,33 +806,49 @@ function calcNextBaki(currentBaki, jenis, amount) {
 
 function recalculateBalances(bank) {
   if (!bank) return;
+  recalculateBalancesMulti([bank]);
+}
+
+function recalculateBalancesMulti(banks) {
+  if (!banks || banks.length === 0) return;
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(DATA_SHEET);
   if (!sheet || sheet.getLastRow() < 2) return;
 
   var config = getConfigDirect();
-  var bakiAwal = config.balances[bank] || 0;
-
   var allData = sheet.getRange(2, 1, sheet.getLastRow() - 1, 8).getValues();
+  var touched = false;
 
-  var bankRows = [];
-  for (var i = 0; i < allData.length; i++) {
-    if (allData[i][1] === bank) {
-      bankRows.push({
-        sheetRow: i + 2,
-        date: allData[i][0] instanceof Date ? allData[i][0] : new Date(allData[i][0] || ''),
-        jenis: allData[i][2] || '',
-        amount: parseFloat(allData[i][4] || 0)
-      });
+  banks.forEach(function(bank) {
+    if (!bank) return;
+
+    var bankRows = [];
+    for (var i = 0; i < allData.length; i++) {
+      if (allData[i][1] === bank) {
+        bankRows.push({
+          index: i,
+          date: allData[i][0] instanceof Date ? allData[i][0] : new Date(allData[i][0] || ''),
+          jenis: allData[i][2] || '',
+          amount: parseFloat(allData[i][4] || 0)
+        });
+      }
     }
-  }
 
-  bankRows.sort(function(a, b) { return a.date - b.date || a.sheetRow - b.sheetRow; });
+    if (bankRows.length === 0) return;
 
-  var baki = bakiAwal;
-  for (var j = 0; j < bankRows.length; j++) {
-    baki = calcNextBaki(baki, bankRows[j].jenis, bankRows[j].amount);
-    sheet.getRange(bankRows[j].sheetRow, 8).setValue(baki);
-  }
+    bankRows.sort(function(a, b) { return a.date - b.date || a.index - b.index; });
+
+    var baki = config.balances[bank] || 0;
+    for (var j = 0; j < bankRows.length; j++) {
+      baki = calcNextBaki(baki, bankRows[j].jenis, bankRows[j].amount);
+      allData[bankRows[j].index][7] = baki;
+    }
+    touched = true;
+  });
+
+  if (!touched) return;
+
+  var bakiCol = allData.map(function(row) { return [row[7]]; });
+  sheet.getRange(2, 8, bakiCol.length, 1).setValues(bakiCol);
 }
 
 // ============================================================
