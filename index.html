@@ -7597,11 +7597,6 @@ var editingOriginalTx = null;
 
 var isLight = false;
 
-var DATA_CACHE = {};
-function cacheGet(k) { var e = DATA_CACHE[k]; return (e && (Date.now()-e.ts)<30000) ? e.data : null; }
-function cacheSet(k, d) { DATA_CACHE[k] = { data: d, ts: Date.now() }; }
-function cacheClear(bank) { var ks = Object.keys(DATA_CACHE); for (var i=0; i<ks.length; i++) { if (bank) { if (ks[i].indexOf(bank)!==-1) delete DATA_CACHE[ks[i]]; } else delete DATA_CACHE[ks[i]]; } }
-
 var PAGE_SIZE = 25;
 var currentBankPage = 1;
 var currentAllTxPage = 1;
@@ -8245,7 +8240,7 @@ function handleQuickTxSubmit() {
   setButtonBusy(submitBtn, true, 'Menyimpan...');
   var se = document.getElementById('quickTxStatus'); se.innerText='Menyimpan...'; se.style.color='var(--accent)';
   google.script.run
-    .withSuccessHandler(function(r) { submitting.quickTx=false; setButtonBusy(submitBtn,false); cacheClear(); se.innerText='✅ Transaksi berjaya ditambah'; se.style.color='var(--success)'; showToast('Transaksi berjaya ditambah','success'); document.getElementById('quickTxAmount').value='';document.getElementById('quickTxNote').value=''; })
+    .withSuccessHandler(function(r) { submitting.quickTx=false; setButtonBusy(submitBtn,false); se.innerText='✅ Transaksi berjaya ditambah'; se.style.color='var(--success)'; showToast('Transaksi berjaya ditambah','success'); document.getElementById('quickTxAmount').value='';document.getElementById('quickTxNote').value=''; })
     .withFailureHandler(function(e) { submitting.quickTx=false; setButtonBusy(submitBtn,false); se.innerText='❌ '+e.message; se.style.color='var(--danger)'; })
     .addTransaction(d);
 }
@@ -8276,7 +8271,7 @@ function handleTransferPageSubmit() {
   setButtonBusy(submitBtn, true, 'Memproses...');
   var se = document.getElementById('transferPageStatus'); se.innerText='Memproses...'; se.style.color='var(--accent)';
   google.script.run
-    .withSuccessHandler(function(r) { submitting.transferPage=false; setButtonBusy(submitBtn,false); cacheClear(); se.innerText='✅ '+r.message; se.style.color='var(--success)'; document.getElementById('transferPageAmount').value='';document.getElementById('transferPageNote').value=''; })
+    .withSuccessHandler(function(r) { submitting.transferPage=false; setButtonBusy(submitBtn,false); se.innerText='✅ '+r.message; se.style.color='var(--success)'; document.getElementById('transferPageAmount').value='';document.getElementById('transferPageNote').value=''; })
     .withFailureHandler(function(e) { submitting.transferPage=false; setButtonBusy(submitBtn,false); se.innerText='❌ '+e.message; se.style.color='var(--danger)'; })
     .addTransfer(d);
 }
@@ -8363,7 +8358,6 @@ function handleTxSubmit(form) {
       submitting.tx = false;
       setButtonBusy(submitBtn, false);
       closeModal('txModal');
-      cacheClear(d.bank);
       showToast(rowId ? 'Berjaya dikemaskini' : 'Transaksi berjaya ditambah','success');
       if (activePage === 'all-tx') {
         loadAllTransactions();
@@ -8401,7 +8395,7 @@ function handleTransferSubmit(form) {
   setButtonBusy(submitBtn, true, 'Memproses...');
   showLoader(true);
   google.script.run
-    .withSuccessHandler(function(r){submitting.transferModal=false;setButtonBusy(submitBtn,false);closeModal('transferModal');cacheClear();showToast(r.message,'success');loadBankData();})
+    .withSuccessHandler(function(r){submitting.transferModal=false;setButtonBusy(submitBtn,false);closeModal('transferModal');showToast(r.message,'success');loadBankData();})
     .withFailureHandler(function(e){submitting.transferModal=false;setButtonBusy(submitBtn,false);showLoader(false);showToast('Error: '+e.message,'error');})
     .addTransfer(d);
 }
@@ -8434,7 +8428,6 @@ function executeDelete() {
       submitting.delete = false;
       setButtonBusy(deleteBtn, false);
       closeDeleteModal();
-      cacheClear(pendingDeleteBank);
       showToast('Berjaya dipadam','success');
       if (source === 'allTx') {
         loadAllTransactions();
@@ -8491,7 +8484,7 @@ function submitBulkData() {
   setButtonBusy(bulkBtn, true, 'Menyimpan...');
   showLoader(true);
   google.script.run
-    .withSuccessHandler(function(r){submitting.bulk=false;setButtonBusy(bulkBtn,false);showLoader(false);cacheClear();showToast('Transaksi berjaya ditambah','success');initBulkPage();})
+    .withSuccessHandler(function(r){submitting.bulk=false;setButtonBusy(bulkBtn,false);showLoader(false);showToast('Transaksi berjaya ditambah','success');initBulkPage();})
     .withFailureHandler(function(e){submitting.bulk=false;setButtonBusy(bulkBtn,false);showLoader(false);showToast('Error: '+e.message,'error');})
     .addBulkTransactions(rows);
 }

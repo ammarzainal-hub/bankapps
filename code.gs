@@ -81,6 +81,12 @@ function isValidDate(dateStr) {
   return d instanceof Date && !isNaN(d);
 }
 
+function getSheetOrThrow(name) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(name);
+  if (!sheet) throw new Error('Tab "' + name + '" tidak dijumpai dalam Google Sheet. Sila semak.');
+  return sheet;
+}
+
 function generateTransferID() {
   return 'T' + new Date().getTime();
 }
@@ -260,33 +266,6 @@ function getConfigDirect() {
 
 function getConfig() {
   return getConfigDirect();
-}
-
-function saveConfig(initialBalances, initialIcons) {
-  return withLock(function() { return saveConfigCore(initialBalances, initialIcons); });
-}
-
-function saveConfigCore(initialBalances, initialIcons) {
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CONFIG_SHEET);
-  if (!sheet) return { status: 'error', message: 'Tab KONFIG tidak dijumpai' };
-
-  initialIcons = initialIcons || {};
-  var bankList = Object.keys(initialBalances);
-  var rows = [];
-
-  rows.push(['BankList', bankList.join(', '), '']);
-  bankList.forEach(function(bank) {
-    rows.push(['BakiAwal_' + bank, initialBalances[bank], (initialIcons[bank] || '')]);
-  });
-
-  var lastRow = sheet.getLastRow();
-  if (lastRow >= 2) sheet.getRange(2, 1, lastRow - 1, 3).clearContent();
-  if (rows.length > 0) {
-    sheet.getRange(2, 1, rows.length, 3).setValues(rows);
-  }
-
-  invalidateCache();
-  return { status: 'success', message: 'Konfigurasi dikemaskini' };
 }
 
 // ============================================================
@@ -572,7 +551,7 @@ function addTransactionCore(data) {
   var safeNote = sanitize(data.note, 500);
   var safeTransferID = sanitize(data.transferID, 100);
 
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(DATA_SHEET);
+  var sheet = getSheetOrThrow(DATA_SHEET);
   sheet.appendRow([safeDate, safeBank, safeJenis, safeCategory, safeAmount, safeNote, safeTransferID, 0]);
 
   recalculateBalances(safeBank);
@@ -638,7 +617,7 @@ function updateTransactionCore(data) {
   var safeNote = sanitize(data.note, 500);
   var safeTransferID = sanitize(data.transferID || '', 100);
 
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(DATA_SHEET);
+  var sheet = getSheetOrThrow(DATA_SHEET);
   if (isNaN(safeRowId) || safeRowId < 2 || safeRowId > sheet.getLastRow()) {
     throw new Error('Transaksi tidak dijumpai. Sila refresh dan cuba lagi.');
   }
@@ -683,7 +662,7 @@ function deleteTransaction(rowId, deletePair, expected) {
     var safeRowId = parseInt(rowId);
     deletePair = deletePair || false;
 
-    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(DATA_SHEET);
+    var sheet = getSheetOrThrow(DATA_SHEET);
     if (isNaN(safeRowId) || safeRowId < 2 || safeRowId > sheet.getLastRow()) {
       throw new Error('Transaksi tidak dijumpai. Sila refresh dan cuba lagi.');
     }
@@ -757,7 +736,7 @@ function addBulkTransactions(rows) {
   }
 
   return withLock(function() {
-    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(DATA_SHEET);
+    var sheet = getSheetOrThrow(DATA_SHEET);
     var banksToRecalc = {};
     var toAppend = [];
 
