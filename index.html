@@ -7600,6 +7600,11 @@ var isLight = false;
 var PAGE_SIZE = 25;
 var currentBankPage = 1;
 var currentAllTxPage = 1;
+var bankLoadToken = 0;
+var allTxLoadToken = 0;
+var allTxSearchTimer = null;
+var allTxTotalRows = 0;
+var allTxTotalPages = 0;
 var submitting = { quickTx:false, tx:false, transferPage:false, transferModal:false, delete:false, bulk:false };
 
 var BANK_ICONS = {};
@@ -7672,7 +7677,7 @@ function buildExpected(tx) {
 }
 function populateYearDropdowns() {
   var cy = new Date().getFullYear();
-  var startYear = 2025;
+  var startYear = 2026;
   var optsCurrent = '', optsPrev = '';
   var prevYear = cy > startYear ? cy - 1 : cy;
   for (var y = startYear; y <= cy + 1; y++) {
@@ -7700,7 +7705,17 @@ function closeSidebar() { document.getElementById('appSidebar').classList.remove
 
 function onFilterChange() {
   resetPagination();
-  debouncedLoadAllData();
+  if (activePage === 'bank' && activeBank) loadBankData();
+  else if (activePage === 'all-tx') loadAllTransactions();
+  else if (activePage === 'chart') { loadChartData(); loadCompareChart(); }
+  else debouncedLoadAllData();
+}
+
+function refreshActiveView() {
+  if (activePage === 'bank' && activeBank) loadBankData();
+  else if (activePage === 'all-tx') loadAllTransactions(false);
+  else if (activePage === 'chart') { loadChartData(); loadCompareChart(); }
+  else loadAllData();
 }
 
 function switchPage(page) {
@@ -7746,7 +7761,7 @@ window.onload = function() {
       categoriesKeluar = [{ name: 'Lain-lain', icon: '📤' }];
       renderSidebarBanks();
     })
-    .getFullDataForCharts(new Date().getFullYear());
+    .getFullDataForCharts(new Date().getFullYear(), '');
 };
 
 // ============================================================
@@ -7784,18 +7799,18 @@ function handleRefresh() {
 
   if (activePage === 'summary' || activePage === 'chart') {
     google.script.run
-      .withSuccessHandler(function(r) { loadAllData(); showToast('Data dikemaskini 🔄', 'success'); })
-      .withFailureHandler(function(e) { loadAllData(); showToast('Data dikemaskini 🔄', 'success'); })
+      .withSuccessHandler(function(r) { refreshActiveView(); showToast('Data dikemaskini 🔄', 'success'); })
+      .withFailureHandler(function(e) { showToast('Gagal refresh: '+e.message, 'error'); })
       .invalidateCache(null, y);
   } else if (activePage === 'bank' && activeBank) {
     google.script.run
       .withSuccessHandler(function(r) { loadBankData(); showToast('Data dikemaskini 🔄', 'success'); })
-      .withFailureHandler(function(e) { loadBankData(); showToast('Data dikemaskini 🔄', 'success'); })
+      .withFailureHandler(function(e) { showToast('Gagal refresh: '+e.message, 'error'); })
       .invalidateCache(activeBank, y);
   } else if (activePage === 'all-tx') {
     google.script.run
-      .withSuccessHandler(function(r) { loadAllTransactions(); showToast('Data dikemaskini 🔄', 'success'); })
-      .withFailureHandler(function(e) { loadAllTransactions(); showToast('Data dikemaskini 🔄', 'success'); })
+      .withSuccessHandler(function(r) { loadAllTransactions(false); showToast('Data dikemaskini 🔄', 'success'); })
+      .withFailureHandler(function(e) { showToast('Gagal refresh: '+e.message, 'error'); })
       .invalidateCache(null, y);
   } else {
     loadAllData();
@@ -7869,6 +7884,7 @@ function renderSidebarBankCharts(summary) {
 function loadAllData() {
   showLoader(true);
   var y = document.getElementById('globalFilterYear').value;
+  var m = document.getElementById('globalFilterMonth').value;
   google.script.run
     .withSuccessHandler(function(summary) {
       if (summary) {
@@ -7885,7 +7901,7 @@ function loadAllData() {
       showLoader(false);
     })
     .withFailureHandler(function(e) { showLoader(false); showToast('Error: '+e.message,'error'); })
-    .getFullDataForCharts(y);
+    .getFullDataForCharts(y, m);
 }
 
 function updateSidebarTotal(s) {
@@ -7979,11 +7995,14 @@ function renderSumPieChart(summary) {
 
 function loadBankData() {
   showLoader(true); resetPagination();
+  var requestBank = activeBank;
+  var token = ++bankLoadToken;
   var m = document.getElementById('globalFilterMonth').value, y = document.getElementById('globalFilterYear').value;
   var dateFilter = document.getElementById('bankFilterDate').value;
 
   google.script.run
     .withSuccessHandler(function(data) {
+      if (token !== bankLoadToken || requestBank !== activeBank) return;
       bankTransactions = data.transactions||[];
       if (dateFilter) {
         bankTransactions = bankTransactions.filter(function(t) { return t.date === dateFilter; });
@@ -7994,8 +8013,8 @@ function loadBankData() {
       renderBankTrendChart(data.yearlyData||{masuk:Array(12).fill(0),keluar:Array(12).fill(0)});
       showLoader(false);
     })
-    .withFailureHandler(function(e) { showLoader(false); showToast('Error: '+e.message,'error'); })
-    .getBatchBankData(activeBank, m, y);
+    .withFailureHandler(function(e) { if (token !== bankLoadToken) return; showLoader(false); showToast('Error: '+e.message,'error'); })
+    .getBatchBankData(requestBank, m, y);
 }
 
 function onBankFilterChange() {
@@ -8085,31 +8104,28 @@ function renderBankTrendChart(yearlyData) {
 
 var allTransactions = [];
 var allTxMap = {};
-function loadAllTransactions() {
-  showLoader(true); currentAllTxPage = 1;
+function loadAllTransactions(resetPage) {
+  if (resetPage !== false) currentAllTxPage = 1;
+  showLoader(true);
+  var token = ++allTxLoadToken;
   var bank = document.getElementById('allTxFilterBank').value, date = document.getElementById('allTxFilterDate').value;
   var m = document.getElementById('globalFilterMonth').value, y = document.getElementById('globalFilterYear').value;
-  var bq = bank ? [bank] : bankList, done = 0;
+  var search = document.getElementById('allTxSearch').value.toLowerCase().trim();
   allTransactions = [];
   allTxMap = {};
-  bq.forEach(function(b) {
-    google.script.run
-      .withSuccessHandler(function(data) {
-        (data.transactions||[]).forEach(function(t) {
-          if (!date||t.date===date) {
-            var txObj = {
-              rowId:t.rowId, date:t.date, bank:b||data.bank, jenis:t.jenis,
-              category:t.category, note:t.note, amount:t.amount, baki:t.baki, transferID:t.transferID
-            };
-            allTransactions.push(txObj);
-            allTxMap[t.rowId] = txObj;
-          }
-        });
-        done++; if (done===bq.length) { allTransactions.sort(function(a,b){return new Date(b.date)-new Date(a.date);}); renderAllTxTable(); showLoader(false); }
-      })
-      .withFailureHandler(function(e) { done++; if (done===bq.length) { showLoader(false); showToast('Error: '+e.message,'error'); } })
-      .getBatchBankData(b, m, y);
-  });
+  google.script.run
+    .withSuccessHandler(function(data) {
+      if (token !== allTxLoadToken) return;
+      allTransactions = data.transactions || [];
+      allTxTotalRows = data.total || 0;
+      allTxTotalPages = data.totalPages || 0;
+      currentAllTxPage = data.page || currentAllTxPage;
+      allTransactions.forEach(function(t) { allTxMap[t.rowId] = t; });
+      renderAllTxTable();
+      showLoader(false);
+    })
+    .withFailureHandler(function(e) { if (token !== allTxLoadToken) return; showLoader(false); showToast('Error: '+e.message,'error'); })
+    .getTransactionsPage(bank, m, y, date, search, currentAllTxPage, PAGE_SIZE);
 }
 
 function editAllTx(rowId) {
@@ -8135,25 +8151,18 @@ var allTxSearchTerm = '';
 function onAllTxSearch() {
   allTxSearchTerm = document.getElementById('allTxSearch').value.toLowerCase().trim();
   currentAllTxPage = 1;
-  renderAllTxTable();
+  clearTimeout(allTxSearchTimer);
+  allTxSearchTimer = setTimeout(function() { loadAllTransactions(false); }, 250);
 }
 
 function renderAllTxTable() {
   var filtered = allTransactions;
-  if (allTxSearchTerm) {
-    filtered = allTransactions.filter(function(t) {
-      return (t.note && t.note.toLowerCase().indexOf(allTxSearchTerm) !== -1) ||
-             (t.category && t.category.toLowerCase().indexOf(allTxSearchTerm) !== -1) ||
-             (t.jenis && t.jenis.toLowerCase().indexOf(allTxSearchTerm) !== -1);
-    });
-  }
   var tbody = document.getElementById('allTxTableBody');
-  var totalRows = filtered.length;
-  var totalPages = Math.ceil(totalRows / PAGE_SIZE);
+  var totalRows = allTxTotalRows;
+  var totalPages = allTxTotalPages;
   if (currentAllTxPage > totalPages) currentAllTxPage = Math.max(1, totalPages);
 
-  var start = (currentAllTxPage - 1) * PAGE_SIZE;
-  var pageData = filtered.slice(start, start + PAGE_SIZE);
+  var pageData = filtered;
 
   if (totalRows===0) {
     tbody.innerHTML='<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--text-muted);font-weight:700;font-size:11px;text-transform:uppercase">Tiada Rekod</td></tr>';
@@ -8182,7 +8191,7 @@ function renderAllTxTable() {
 
 function goToAllTxPage(page) {
   currentAllTxPage = page;
-  renderAllTxTable();
+  loadAllTransactions(false);
 }
 
 // ============================================================
@@ -8240,7 +8249,7 @@ function handleQuickTxSubmit() {
   setButtonBusy(submitBtn, true, 'Menyimpan...');
   var se = document.getElementById('quickTxStatus'); se.innerText='Menyimpan...'; se.style.color='var(--accent)';
   google.script.run
-    .withSuccessHandler(function(r) { submitting.quickTx=false; setButtonBusy(submitBtn,false); se.innerText='✅ Transaksi berjaya ditambah'; se.style.color='var(--success)'; showToast('Transaksi berjaya ditambah','success'); document.getElementById('quickTxAmount').value='';document.getElementById('quickTxNote').value=''; })
+    .withSuccessHandler(function(r) { submitting.quickTx=false; setButtonBusy(submitBtn,false); se.innerText='✅ Transaksi berjaya ditambah'; se.style.color='var(--success)'; showToast('Transaksi berjaya ditambah','success'); document.getElementById('quickTxAmount').value='';document.getElementById('quickTxNote').value=''; refreshActiveView(); })
     .withFailureHandler(function(e) { submitting.quickTx=false; setButtonBusy(submitBtn,false); se.innerText='❌ '+e.message; se.style.color='var(--danger)'; })
     .addTransaction(d);
 }
@@ -8271,7 +8280,7 @@ function handleTransferPageSubmit() {
   setButtonBusy(submitBtn, true, 'Memproses...');
   var se = document.getElementById('transferPageStatus'); se.innerText='Memproses...'; se.style.color='var(--accent)';
   google.script.run
-    .withSuccessHandler(function(r) { submitting.transferPage=false; setButtonBusy(submitBtn,false); se.innerText='✅ '+r.message; se.style.color='var(--success)'; document.getElementById('transferPageAmount').value='';document.getElementById('transferPageNote').value=''; })
+    .withSuccessHandler(function(r) { submitting.transferPage=false; setButtonBusy(submitBtn,false); se.innerText='✅ '+r.message; se.style.color='var(--success)'; document.getElementById('transferPageAmount').value='';document.getElementById('transferPageNote').value=''; refreshActiveView(); })
     .withFailureHandler(function(e) { submitting.transferPage=false; setButtonBusy(submitBtn,false); se.innerText='❌ '+e.message; se.style.color='var(--danger)'; })
     .addTransfer(d);
 }
@@ -8289,7 +8298,7 @@ function applyBankSort() {
   var k = bankSortConfig.key, d = bankSortConfig.direction;
   bankTransactions.sort(function(a,b) {
     var va=a[k],vb=b[k]; if(k==='date'){va=new Date(va);vb=new Date(vb);}else if(k==='amount'||k==='baki'){va=parseFloat(va)||0;vb=parseFloat(vb)||0;}else{va=(va||'').toString().toLowerCase();vb=(vb||'').toString().toLowerCase();}
-    if(va<vb)return d==='asc'?-1:1; if(va>vb)return d==='asc'?1:-1; return 0;
+    if(va<vb)return d==='asc'?-1:1; if(va>vb)return d==='asc'?1:-1; return (a.rowId||0)-(b.rowId||0);
   });
   ['date','jenis','category','note','amount','baki'].forEach(function(kn){var e=document.getElementById('bank-sort-'+kn);if(e)e.innerHTML=(k===kn?(d==='asc'?'▲':'▼'):'');});
   currentBankPage = 1;
@@ -8395,7 +8404,7 @@ function handleTransferSubmit(form) {
   setButtonBusy(submitBtn, true, 'Memproses...');
   showLoader(true);
   google.script.run
-    .withSuccessHandler(function(r){submitting.transferModal=false;setButtonBusy(submitBtn,false);closeModal('transferModal');showToast(r.message,'success');loadBankData();})
+    .withSuccessHandler(function(r){submitting.transferModal=false;setButtonBusy(submitBtn,false);closeModal('transferModal');showToast(r.message,'success');refreshActiveView();})
     .withFailureHandler(function(e){submitting.transferModal=false;setButtonBusy(submitBtn,false);showLoader(false);showToast('Error: '+e.message,'error');})
     .addTransfer(d);
 }
@@ -8509,11 +8518,11 @@ function submitBulkData() {
 // ============================================================
 
 function loadChartData() {
-  showLoader(true); var y=document.getElementById('globalFilterYear').value;
+  showLoader(true); var y=document.getElementById('globalFilterYear').value, m=document.getElementById('globalFilterMonth').value;
   google.script.run
     .withSuccessHandler(function(data){renderChartCashflow(data);renderChartMasukKeluar(data);renderChartBakiTrendChart(data);renderChartPieMasuk(data);renderChartPieKeluar(data);showLoader(false);})
     .withFailureHandler(function(e){showLoader(false);showToast('Error: '+e.message,'error');})
-    .getFullDataForCharts(y);
+    .getFullDataForCharts(y, m);
 }
 
 function renderChartCashflow(data) {

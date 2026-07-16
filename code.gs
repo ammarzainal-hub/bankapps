@@ -8,6 +8,7 @@ const KATEGORI_KELUAR_SHEET = 'KATEGORI_KELUAR';
 const CONFIG_SHEET         = 'KONFIG';
 const CACHE_TTL            = 7200;
 const PAGE_SIZE            = 25;
+const MIN_YEAR             = 2026;
 
 // ============================================================
 //   CACHE SERVICE
@@ -44,11 +45,12 @@ function invalidateCache(bank, year) {
     } else {
       yearsToClear = [];
       var maxYear = new Date().getFullYear() + 2;
-      for (var y = 2025; y <= maxYear; y++) yearsToClear.push(y);
+      for (var y = MIN_YEAR; y <= maxYear; y++) yearsToClear.push(y);
     }
     if (bank) {
       yearsToClear.forEach(function(y) {
         cache.remove('tx_' + bank + '_' + y);
+        cache.remove('tx_all_' + y);
       });
     } else {
       var config = getConfigDirect();
@@ -57,8 +59,13 @@ function invalidateCache(bank, year) {
           cache.remove('tx_' + b + '_' + y);
         });
       });
+      yearsToClear.forEach(function(y) { cache.remove('tx_all_' + y); });
     }
-    yearsToClear.forEach(function(y) { cache.remove('charts_' + y); });
+    yearsToClear.forEach(function(y) {
+      cache.remove('charts_' + y);
+      cache.remove('charts_all_' + y);
+      for (var m = 1; m <= 12; m++) cache.remove('charts_' + m + '_' + y);
+    });
     cache.remove('cat_masuk');
     cache.remove('cat_keluar');
     cache.remove('categories');
@@ -286,6 +293,7 @@ function addBank(bankName, initialBalance, icon) {
 function addBankCore(bankName, initialBalance, icon) {
   var safeName = sanitize(bankName, 50);
   if (!safeName) return { status: 'error', message: 'Nama bank diperlukan' };
+  if (safeName.indexOf(',') !== -1) return { status: 'error', message: 'Nama bank tidak boleh mengandungi koma' };
 
   var config = getConfigDirect();
   if (config.bankList.indexOf(safeName) !== -1) {
@@ -317,24 +325,27 @@ function updateBankLabel(oldName, newName, newIcon) {
 
 function updateBankLabelCore(oldName, newName, newIcon) {
   if (!oldName || !newName) return { status: 'error', message: 'Nama lama dan baru diperlukan' };
-  if (oldName === newName) return { status: 'error', message: 'Nama bank tidak berubah' };
+  var safeNewName = sanitize(newName, 50);
+  if (!safeNewName) return { status: 'error', message: 'Nama bank baru diperlukan' };
+  if (safeNewName.indexOf(',') !== -1) return { status: 'error', message: 'Nama bank tidak boleh mengandungi koma' };
+  if (oldName === safeNewName) return { status: 'error', message: 'Nama bank tidak berubah' };
 
   var config = getConfigDirect();
   if (config.bankList.indexOf(oldName) === -1) {
     return { status: 'error', message: 'Bank ' + oldName + ' tidak wujud' };
   }
-  if (config.bankList.indexOf(newName) !== -1) {
-    return { status: 'error', message: 'Bank ' + newName + ' sudah wujud' };
+  if (config.bankList.indexOf(safeNewName) !== -1) {
+    return { status: 'error', message: 'Bank ' + safeNewName + ' sudah wujud' };
   }
 
   var configSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CONFIG_SHEET);
-  var newBankList = config.bankList.map(function(b) { return b === oldName ? newName : b; });
+  var newBankList = config.bankList.map(function(b) { return b === oldName ? safeNewName : b; });
   var usedIcon = (newIcon !== undefined && newIcon !== '') ? newIcon : (config.icons[oldName] || '');
 
   var rows = [['BankList', newBankList.join(', '), '']];
   newBankList.forEach(function(b) {
-    var bal = b === newName ? (config.balances[oldName] || 0) : (config.balances[b] || 0);
-    var ico = b === newName ? usedIcon : (config.icons[b] || '');
+    var bal = b === safeNewName ? (config.balances[oldName] || 0) : (config.balances[b] || 0);
+    var ico = b === safeNewName ? usedIcon : (config.icons[b] || '');
     rows.push(['BakiAwal_' + b, bal, ico]);
   });
 
@@ -352,7 +363,7 @@ function updateBankLabelCore(oldName, newName, newIcon) {
       if (!isMatch && runStart !== -1) {
         var runLen = i - runStart;
         var vals = [];
-        for (var k = 0; k < runLen; k++) vals.push([newName]);
+        for (var k = 0; k < runLen; k++) vals.push([safeNewName]);
         dataSheet.getRange(runStart + 2, 2, runLen, 1).setValues(vals);
         runStart = -1;
       }
@@ -360,7 +371,7 @@ function updateBankLabelCore(oldName, newName, newIcon) {
   }
 
   invalidateCache();
-  return { status: 'success', message: 'Bank berjaya dinamakan semula', bankList: newBankList, oldName: oldName, newName: newName };
+  return { status: 'success', message: 'Bank berjaya dinamakan semula', bankList: newBankList, oldName: oldName, newName: safeNewName };
 }
 
 function updateBankIcon(bankName, icon) {
@@ -473,6 +484,33 @@ function getTransactionsPaginated(bank, month, year, day, page, pageSize) {
   var allTx = getTransactions(month, year, bank, null, day);
   var total = allTx.length;
   var totalPages = Math.ceil(total / pageSize);
+  if (totalPages > 0 && page > totalPages) page = totalPages;
+  var start = (page - 1) * pageSize;
+  var transactions = allTx.slice(start, start + pageSize);
+  return { transactions: transactions, total: total, page: page, pageSize: pageSize, totalPages: totalPages };
+}
+
+function getTransactionsPage(bank, month, year, exactDate, search, page, pageSize) {
+  pageSize = pageSize || PAGE_SIZE;
+  page = page || 1;
+  search = (search || '').toString().trim().toLowerCase();
+
+  var allTx = getTransactions(month, year, bank)
+    .filter(function(t) {
+      if (exactDate && t.date !== exactDate) return false;
+      if (search) {
+        var haystack = [t.note, t.category, t.jenis, t.bank].join(' ').toLowerCase();
+        if (haystack.indexOf(search) === -1) return false;
+      }
+      return true;
+    })
+    .sort(function(a, b) {
+      return new Date(b.date) - new Date(a.date) || b.rowId - a.rowId;
+    });
+
+  var total = allTx.length;
+  var totalPages = Math.ceil(total / pageSize);
+  if (totalPages > 0 && page > totalPages) page = totalPages;
   var start = (page - 1) * pageSize;
   var transactions = allTx.slice(start, start + pageSize);
   return { transactions: transactions, total: total, page: page, pageSize: pageSize, totalPages: totalPages };
@@ -575,29 +613,25 @@ function addTransfer(data) {
   if (!data.amount || parseFloat(data.amount) <= 0) throw new Error('Amaun mesti lebih dari 0');
 
   return withLock(function() {
+    var sheet = getSheetOrThrow(DATA_SHEET);
     var transferID = generateTransferID();
+    var safeDate = toStoredDate(data.date);
+    var safeFromBank = sanitize(data.fromBank, 50);
+    var safeToBank = sanitize(data.toBank, 50);
     var safeAmount = parseFloat(data.amount);
     var safeNote = sanitize(data.note, 500);
+    var rows = [
+      [safeDate, safeFromBank, 'Transfer Keluar', 'Transfer', safeAmount, safeNote || ('Transfer ke ' + safeToBank), transferID, 0],
+      [safeDate, safeToBank, 'Transfer Masuk', 'Transfer', safeAmount, safeNote || ('Transfer dari ' + safeFromBank), transferID, 0]
+    ];
 
-    addTransactionCore({
-      date: data.date,
-      bank: data.fromBank,
-      jenis: 'Transfer Keluar',
-      category: 'Transfer',
-      amount: safeAmount,
-      note: safeNote || ('Transfer ke ' + data.toBank),
-      transferID: transferID
-    });
+    var startRow = sheet.getLastRow() + 1;
+    sheet.getRange(startRow, 1, rows.length, 8).setValues(rows);
+    sheet.getRange(startRow, 1, rows.length, 1).setNumberFormat('dd/MM/yyyy HH:mm:ss');
 
-    addTransactionCore({
-      date: data.date,
-      bank: data.toBank,
-      jenis: 'Transfer Masuk',
-      category: 'Transfer',
-      amount: safeAmount,
-      note: safeNote || ('Transfer dari ' + data.fromBank),
-      transferID: transferID
-    });
+    recalculateBalancesMulti([safeFromBank, safeToBank]);
+    invalidateCache(safeFromBank);
+    invalidateCache(safeToBank);
 
     return { status: 'success', message: 'Transfer berjaya direkodkan' };
   });
@@ -941,14 +975,16 @@ function getYearlySummaryData(year) {
   return result;
 }
 
-function getFullDataForCharts(year) {
-  return getCachedOrFetch('charts_' + year, function() {
+function getFullDataForCharts(year, month) {
+  var summaryMonth = month || '';
+  var cacheKey = 'charts_' + (summaryMonth || 'all') + '_' + year;
+  return getCachedOrFetch(cacheKey, function() {
     var config = getConfigDirect();
     return {
       bankList: config.bankList,
       balances: config.balances,
       icons: config.icons,
-      summary: getBatchSummaryData('', year),
+      summary: getBatchSummaryData(summaryMonth, year),
       yearlySummary: getYearlySummaryData(year),
       categoriesMasuk: getCategoriesMasuk(),
       categoriesKeluar: getCategoriesKeluar()
