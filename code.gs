@@ -9,6 +9,7 @@ const CONFIG_SHEET         = 'KONFIG';
 const CACHE_TTL            = 7200;
 const PAGE_SIZE            = 25;
 const MIN_YEAR             = 2026;
+const MAX_YEAR             = 2035;
 
 // ============================================================
 //   CACHE SERVICE
@@ -44,7 +45,7 @@ function invalidateCache(bank, year) {
       yearsToClear = [year];
     } else {
       yearsToClear = [];
-      var maxYear = new Date().getFullYear() + 2;
+      var maxYear = Math.max(MAX_YEAR, new Date().getFullYear() + 2);
       for (var y = MIN_YEAR; y <= maxYear; y++) yearsToClear.push(y);
     }
     if (bank) {

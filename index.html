@@ -6617,6 +6617,14 @@ return Tn.register(Un,$o,go,t),Tn.helpers={...Hi},Tn._adapters=In,Tn.Animation=A
     .sidebar-nav .nav-link .badge { margin-left: auto; font-size: 10px; }
     .sidebar-nav .submenu { padding-left: 20px; }
     .sidebar-nav .submenu .nav-link { font-size: 12px; padding: 8px 12px; font-weight: 500; }
+    .sidebar-nav .submenu .nav-link.active {
+      width: calc(100% - 10px);
+      margin: 2px 0 2px 10px;
+      padding: 7px 10px;
+      background: rgba(99, 102, 241, 0.18);
+      color: var(--text-primary);
+      box-shadow: inset 3px 0 0 var(--accent);
+    }
 
     .sidebar-bank-item { display: flex; align-items: center; gap: 2px; }
     .sidebar-bank-item .nav-link { flex: 1; }
@@ -6793,7 +6801,7 @@ return Tn.register(Un,$o,go,t),Tn.helpers={...Hi},Tn._adapters=In,Tn.Animation=A
       </button>
     </div>
     <div class="nav-item">
-      <button class="nav-link" data-bs-toggle="collapse" data-bs-target="#subAccounts" aria-expanded="false">
+      <button class="nav-link" data-section="accounts" data-bs-toggle="collapse" data-bs-target="#subAccounts" aria-expanded="false">
         <i class="iconoir-bank"></i> Akaun Bank
       </button>
       <div class="collapse submenu" id="subAccounts">
@@ -6801,7 +6809,7 @@ return Tn.register(Un,$o,go,t),Tn.helpers={...Hi},Tn._adapters=In,Tn.Animation=A
       </div>
     </div>
     <div class="nav-item">
-      <button class="nav-link" data-bs-toggle="collapse" data-bs-target="#subTransactions" aria-expanded="false">
+      <button class="nav-link" data-section="transactions" data-bs-toggle="collapse" data-bs-target="#subTransactions" aria-expanded="false">
         <i class="iconoir-arrow-separate-vertical"></i> Transaksi
       </button>
       <div class="collapse submenu" id="subTransactions">
@@ -7090,7 +7098,7 @@ return Tn.register(Un,$o,go,t),Tn.helpers={...Hi},Tn._adapters=In,Tn.Animation=A
 <div class="loader-overlay hidden" id="loader">
   <div style="display:flex;flex-direction:column;align-items:center">
     <div class="spinner"></div>
-    <div class="loader-text" id="loaderText">Memuat sistem...</div>
+    <div class="loader-text" id="loaderText">Memuat data...</div>
   </div>
 </div>
 
@@ -7644,7 +7652,7 @@ function showLoader(s) {
   var el = document.getElementById('loader');
   if (s) {
     el.classList.remove('hidden');
-    document.getElementById('loaderText').innerText = 'Memuat sistem...';
+    document.getElementById('loaderText').innerText = 'Memuat data...';
   } else {
     el.classList.add('hidden');
   }
@@ -7678,9 +7686,10 @@ function buildExpected(tx) {
 function populateYearDropdowns() {
   var cy = new Date().getFullYear();
   var startYear = 2026;
+  var endYear = 2035;
   var optsCurrent = '', optsPrev = '';
   var prevYear = cy > startYear ? cy - 1 : cy;
-  for (var y = startYear; y <= cy + 1; y++) {
+  for (var y = startYear; y <= Math.max(endYear, cy + 1); y++) {
     optsCurrent += '<option value="'+y+'"'+(y===cy?' selected':'')+'>'+y+'</option>';
     optsPrev += '<option value="'+y+'"'+(y===prevYear?' selected':'')+'>'+y+'</option>';
   }
@@ -7718,12 +7727,34 @@ function refreshActiveView() {
   else loadAllData();
 }
 
+function updateSidebarActiveState() {
+  document.querySelectorAll('.sidebar-nav .nav-link').forEach(function(el) { el.classList.remove('active'); });
+  if (activePage === 'bank') {
+    var accountsBtn = document.querySelector('.sidebar-nav .nav-link[data-section="accounts"]');
+    if (accountsBtn) accountsBtn.classList.add('active');
+    document.querySelectorAll('#sidebarBankList .nav-link[data-bank]').forEach(function(el) {
+      if (el.getAttribute('data-bank') === activeBank) el.classList.add('active');
+    });
+    var accountsMenu = document.getElementById('subAccounts');
+    if (accountsMenu) accountsMenu.classList.add('show');
+    return;
+  }
+
+  var pageBtn = document.querySelector('.sidebar-nav .nav-link[data-page="' + activePage + '"]');
+  if (pageBtn) pageBtn.classList.add('active');
+  if (activePage === 'all-tx' || activePage === 'add-tx' || activePage === 'transfer') {
+    var txBtn = document.querySelector('.sidebar-nav .nav-link[data-section="transactions"]');
+    if (txBtn) txBtn.classList.add('active');
+    var txMenu = document.getElementById('subTransactions');
+    if (txMenu) txMenu.classList.add('show');
+  }
+}
+
 function switchPage(page) {
   activePage = page; closeSidebar(); resetPagination();
   document.querySelectorAll('.page-content').forEach(function(el) { el.classList.remove('active'); });
   var pel = document.getElementById('page-' + page); if (pel) pel.classList.add('active');
-  document.querySelectorAll('.sidebar-nav .nav-link').forEach(function(el) { el.classList.remove('active'); });
-  var al = document.querySelector('.sidebar-nav .nav-link[data-page="' + page + '"]'); if (al) al.classList.add('active');
+  updateSidebarActiveState();
   var titles = { 'summary':'Ringkasan','bank':'Detail Bank','all-tx':'Semua Transaksi','add-tx':'Tambah Transaksi','transfer':'Transfer','bulk':'Rekod Pukal','chart':'Carta & Analitik','settings':'Settings' };
   document.getElementById('topbarTitle').innerText = titles[page] || page;
   if (page === 'summary') loadAllData();
@@ -7740,7 +7771,7 @@ function selectBank(bankName) {
   document.querySelectorAll('.page-content').forEach(function(el) { el.classList.remove('active'); });
   document.getElementById('page-bank').classList.add('active');
   document.getElementById('topbarTitle').innerText = bankName;
-  document.querySelectorAll('.sidebar-nav .nav-link').forEach(function(el) { el.classList.remove('active'); });
+  updateSidebarActiveState();
   loadBankData();
 }
 
@@ -7774,11 +7805,12 @@ function renderSidebarBanks() {
     var safeId = b.replace(/[^a-zA-Z0-9]/g, '_');
     var safeBank = escapeHtml(escJs(b));
     h += '<div class="sidebar-bank-item">';
-    h += '<button class="nav-link" onclick="selectBank(\'' + safeBank + '\')">' + getBankIconHtml(b,22) + ' ' + escapeHtml(b) + '</button>';
+    h += '<button class="nav-link" data-bank="' + escapeHtml(b) + '" onclick="selectBank(\'' + safeBank + '\')">' + getBankIconHtml(b,22) + ' ' + escapeHtml(b) + '</button>';
     h += '<div class="sidebar-mini-chart"><canvas id="sbChart_' + safeId + '" width="36" height="36"></canvas></div>';
     h += '</div>';
   });
   c.innerHTML = h;
+  updateSidebarActiveState();
 }
 
 function updateAllTxBankFilter() {
@@ -8289,6 +8321,17 @@ function handleTransferPageSubmit() {
 //   SORT
 // ============================================================
 
+function setTxJenisOptions(isTransfer, selectedJenis) {
+  var s = document.getElementById('txFormJenis');
+  if (isTransfer) {
+    s.innerHTML = '<option value="Transfer Keluar">Transfer Keluar</option><option value="Transfer Masuk">Transfer Masuk</option>';
+  } else {
+    s.innerHTML = '<option value="Masuk">Masuk</option><option value="Keluar">Keluar</option>';
+  }
+  s.value = selectedJenis;
+  s.disabled = isTransfer;
+}
+
 function handleBankSort(key) {
   if (bankSortConfig.key===key) bankSortConfig.direction = bankSortConfig.direction==='asc'?'desc':'asc';
   else { bankSortConfig.key=key; bankSortConfig.direction = key==='date'?'desc':'asc'; }
@@ -8313,7 +8356,7 @@ function openBankAddModal() {
   editingOriginalTx = null;
   document.getElementById('txModalTitle').innerText='Rekod Masuk — '+activeBank;document.getElementById('txModalTitle').style.color='var(--success)';
   document.getElementById('txEditRowId').value='';document.getElementById('txTransferID').value='';
-  document.getElementById('txFormDate').value=todayLocal();document.getElementById('txFormJenis').value='Masuk';document.getElementById('txFormJenis').disabled=false;
+  document.getElementById('txFormDate').value=todayLocal();setTxJenisOptions(false, 'Masuk');document.getElementById('txFormBank').disabled=false;document.getElementById('txFormCategory').disabled=false;
   document.getElementById('txFormAmount').value='';document.getElementById('txFormNote').value='';
   populateBankDropdown(activeBank); onJenisChange(); openModal('txModal');
 }
@@ -8321,7 +8364,7 @@ function openBankDeductModal() {
   editingOriginalTx = null;
   document.getElementById('txModalTitle').innerText='Rekod Keluar — '+activeBank;document.getElementById('txModalTitle').style.color='var(--danger)';
   document.getElementById('txEditRowId').value='';document.getElementById('txTransferID').value='';
-  document.getElementById('txFormDate').value=todayLocal();document.getElementById('txFormJenis').value='Keluar';document.getElementById('txFormJenis').disabled=false;
+  document.getElementById('txFormDate').value=todayLocal();setTxJenisOptions(false, 'Keluar');document.getElementById('txFormBank').disabled=false;document.getElementById('txFormCategory').disabled=false;
   document.getElementById('txFormAmount').value='';document.getElementById('txFormNote').value='';
   populateBankDropdown(activeBank); onJenisChange(); openModal('txModal');
 }
@@ -8338,7 +8381,7 @@ function openTxEditModal(tx) {
   if (isTransfer) jl='Edit Transfer';
   document.getElementById('txModalTitle').innerText=jl;document.getElementById('txModalTitle').style.color='var(--text-primary)';
   document.getElementById('txEditRowId').value=rowId;document.getElementById('txTransferID').value=tx.transferID||'';
-  document.getElementById('txFormDate').value=tx.date;document.getElementById('txFormJenis').value=tx.jenis;document.getElementById('txFormJenis').disabled=isTransfer;
+  document.getElementById('txFormDate').value=tx.date;setTxJenisOptions(isTransfer, tx.jenis);document.getElementById('txFormBank').disabled=isTransfer;document.getElementById('txFormCategory').disabled=isTransfer;
   document.getElementById('txFormAmount').value=tx.amount;document.getElementById('txFormNote').value=tx.note||'';
   populateBankDropdown(tx.bank); onJenisChange(); document.getElementById('txFormCategory').value=tx.category||''; openModal('txModal');
 }
@@ -8347,6 +8390,7 @@ function populateBankDropdown(selected) {
 }
 function onJenisChange() {
   var j = document.getElementById('txFormJenis').value, c = document.getElementById('txFormCategory'); c.innerHTML='';
+  if (j==='Transfer Masuk'||j==='Transfer Keluar') { c.innerHTML='<option value="Transfer">Transfer</option>'; c.value='Transfer'; return; }
   var cats = (j==='Masuk'||j==='Transfer Masuk')?categoriesMasuk:categoriesKeluar;
   cats.forEach(function(cat){c.innerHTML+='<option value="'+escapeHtml(cat.name)+'">'+escapeHtml(cat.icon||'')+' '+escapeHtml(cat.name)+'</option>';});
 }
