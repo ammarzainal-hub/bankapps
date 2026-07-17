@@ -1,5 +1,5 @@
 /**
- * BankApps — Rekod Keluar Masuk Duit
+ * 🏦 Rekod Bank 🏦 — Rekod Keluar Masuk Duit
  * KONFIGURASI NAMA TAB SHEET
  */
 const DATA_SHEET           = 'DATA';
@@ -133,7 +133,7 @@ function rowMatchesExpected(row, expected) {
 
 function doGet() {
   return HtmlService.createHtmlOutputFromFile('index')
-    .setTitle('BankApps — Rekod Bank')
+    .setTitle('🏦 Rekod Bank 🏦')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
