@@ -6890,12 +6890,12 @@ return Tn.register(Un,$o,go,t),Tn.helpers={...Hi},Tn._adapters=In,Tn.Animation=A
     <div class="table-wrapper">
       <table class="table-dark-custom"><thead><tr>
         <th style="text-align:center">Aksi</th>
-        <th class="sortable" onclick="handleBankSort('date')">Tarikh <span class="sort-indicator" id="bank-sort-date">v</span></th>
-        <th class="sortable" onclick="handleBankSort('jenis')" style="text-align:center">Jenis <span class="sort-indicator" id="bank-sort-jenis"></span></th>
-        <th class="sortable" onclick="handleBankSort('category')">Kategori <span class="sort-indicator" id="bank-sort-category"></span></th>
-        <th class="sortable" onclick="handleBankSort('note')">Nota <span class="sort-indicator" id="bank-sort-note"></span></th>
-        <th class="sortable" onclick="handleBankSort('amount')" style="text-align:right">Amaun <span class="sort-indicator" id="bank-sort-amount"></span></th>
-        <th class="sortable" onclick="handleBankSort('baki')" style="text-align:right">Baki <span class="sort-indicator" id="bank-sort-baki"></span></th>
+        <th class="sortable" onclick="handleBankSort('date')">Tarikh <span class="sort-indicator" id="bank-sort-date">↓</span></th>
+        <th class="sortable" onclick="handleBankSort('jenis')" style="text-align:center">Jenis <span class="sort-indicator" id="bank-sort-jenis">↕</span></th>
+        <th class="sortable" onclick="handleBankSort('category')">Kategori <span class="sort-indicator" id="bank-sort-category">↕</span></th>
+        <th class="sortable" onclick="handleBankSort('note')">Nota <span class="sort-indicator" id="bank-sort-note">↕</span></th>
+        <th class="sortable" onclick="handleBankSort('amount')" style="text-align:right">Amaun <span class="sort-indicator" id="bank-sort-amount">↕</span></th>
+        <th class="sortable" onclick="handleBankSort('baki')" style="text-align:right">Baki <span class="sort-indicator" id="bank-sort-baki">↕</span></th>
       </tr></thead>
       <tbody id="bankTransactionBody"></tbody></table>
       <div class="pagination-bar" id="bankPagination" style="display:none">
@@ -6908,14 +6908,20 @@ return Tn.register(Un,$o,go,t),Tn.helpers={...Hi},Tn._adapters=In,Tn.Animation=A
 
   <div class="page-content" id="page-all-tx">
     <div class="d-flex flex-wrap gap-2 mb-3 align-items-center">
-      <input type="text" id="allTxSearch" placeholder="🔍 Cari nota/kategori..." oninput="onAllTxSearch()" style="background:var(--input-bg);border:1px solid var(--input-border);color:var(--text-primary);border-radius:10px;padding:8px 14px;font-size:12px;font-weight:600;min-width:180px;flex:1;max-width:260px;outline:none">
+      <input type="text" id="allTxSearch" placeholder="🔍 Cari nota/kategori/amaun..." oninput="onAllTxSearch()" style="background:var(--input-bg);border:1px solid var(--input-border);color:var(--text-primary);border-radius:10px;padding:8px 14px;font-size:12px;font-weight:600;min-width:180px;flex:1;max-width:260px;outline:none">
       <select id="allTxFilterBank" onchange="loadAllTransactions()" style="background:var(--input-bg);border:1px solid var(--input-border);color:var(--text-primary);border-radius:10px;padding:8px 14px;font-size:12px;font-weight:600"><option value="">Semua Bank</option></select>
       <input type="date" id="allTxFilterDate" onchange="loadAllTransactions()" style="background:var(--input-bg);border:1px solid var(--input-border);color:var(--text-primary);border-radius:10px;padding:8px 14px;font-size:12px;font-weight:600">
       <button class="btn btn-outline btn-sm" onclick="document.getElementById('allTxFilterDate').value='';loadAllTransactions()">Reset</button>
     </div>
     <div class="table-wrapper"><table class="table-dark-custom"><thead><tr>
       <th style="text-align:center">Aksi</th>
-      <th>Tarikh</th><th>Bank</th><th style="text-align:center">Jenis</th><th>Kategori</th><th>Nota</th><th style="text-align:right">Amaun</th><th style="text-align:right">Baki</th>
+      <th class="sortable" onclick="handleAllTxSort('date')">Tarikh <span class="sort-indicator" id="alltx-sort-date">↓</span></th>
+      <th class="sortable" onclick="handleAllTxSort('bank')">Bank <span class="sort-indicator" id="alltx-sort-bank">↕</span></th>
+      <th class="sortable" onclick="handleAllTxSort('jenis')" style="text-align:center">Jenis <span class="sort-indicator" id="alltx-sort-jenis">↕</span></th>
+      <th class="sortable" onclick="handleAllTxSort('category')">Kategori <span class="sort-indicator" id="alltx-sort-category">↕</span></th>
+      <th class="sortable" onclick="handleAllTxSort('note')">Nota <span class="sort-indicator" id="alltx-sort-note">↕</span></th>
+      <th class="sortable" onclick="handleAllTxSort('amount')" style="text-align:right">Amaun <span class="sort-indicator" id="alltx-sort-amount">↕</span></th>
+      <th class="sortable" onclick="handleAllTxSort('baki')" style="text-align:right">Baki <span class="sort-indicator" id="alltx-sort-baki">↕</span></th>
     </tr></thead><tbody id="allTxTableBody"></tbody></table>
     <div class="pagination-bar" id="allTxPagination" style="display:none">
       <button onclick="goToAllTxPage(currentAllTxPage-1)" id="allTxPagePrev">← Previous</button>
@@ -7079,9 +7085,9 @@ return Tn.register(Un,$o,go,t),Tn.helpers={...Hi},Tn._adapters=In,Tn.Animation=A
 
 <div class="modal-overlay hidden" id="deleteModal">
   <div class="modal-dialog text-center" style="max-width:380px">
-    <div style="font-size:48px;margin-bottom:12px">🗑️</div>
-    <h3 style="margin-bottom:8px">Padam Rekod?</h3>
-    <p style="font-size:13px;color:var(--text-muted);margin-bottom:8px">Tindakan ini tidak boleh dikembalikan.</p>
+    <div id="deleteModalIcon" style="font-size:48px;margin-bottom:12px">🗑️</div>
+    <h3 id="deleteModalTitle" style="margin-bottom:8px">Padam Rekod?</h3>
+    <p id="deleteModalMessage" style="font-size:13px;color:var(--text-muted);margin-bottom:8px">Tindakan ini tidak boleh dikembalikan.</p>
     <p id="deleteModalDetail" style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:12px"></p>
     <div id="deleteTransferOption" class="hidden" style="background:var(--hover-bg);padding:12px;border-radius:12px;text-align:left;margin-bottom:12px">
       <label style="font-size:13px;font-weight:600;color:var(--accent);cursor:pointer;display:flex;align-items:center;gap:8px">
@@ -7601,6 +7607,8 @@ var pendingDeleteBank = '';
 
 var pendingDeleteSource = 'bank'; // 'bank' or 'allTx'
 var pendingDeleteTx = null;
+var pendingConfirmAction = 'transaction';
+var pendingConfirmPayload = null;
 var editingOriginalTx = null;
 
 var isLight = false;
@@ -7608,6 +7616,7 @@ var isLight = false;
 var PAGE_SIZE = 25;
 var currentBankPage = 1;
 var currentAllTxPage = 1;
+var allTxSortConfig = { key: 'date', direction: 'desc' };
 var bankLoadToken = 0;
 var allTxLoadToken = 0;
 var allTxSearchTimer = null;
@@ -7803,13 +7812,15 @@ function renderSidebarBanks() {
   var c = document.getElementById('sidebarBankList'), h = '';
   bankList.forEach(function(b) {
     var safeId = b.replace(/[^a-zA-Z0-9]/g, '_');
-    var safeBank = escapeHtml(escJs(b));
     h += '<div class="sidebar-bank-item">';
-    h += '<button class="nav-link" data-bank="' + escapeHtml(b) + '" onclick="selectBank(\'' + safeBank + '\')">' + getBankIconHtml(b,22) + ' ' + escapeHtml(b) + '</button>';
+    h += '<button class="nav-link" data-bank="' + escapeHtml(b) + '">' + getBankIconHtml(b,22) + ' ' + escapeHtml(b) + '</button>';
     h += '<div class="sidebar-mini-chart"><canvas id="sbChart_' + safeId + '" width="36" height="36"></canvas></div>';
     h += '</div>';
   });
   c.innerHTML = h;
+  c.querySelectorAll('.nav-link[data-bank]').forEach(function(btn) {
+    btn.addEventListener('click', function() { selectBank(this.dataset.bank); });
+  });
   updateSidebarActiveState();
 }
 
@@ -8076,18 +8087,20 @@ function renderBankTable() {
     pageData.forEach(function(t) {
       var jc = ''; if (t.jenis==='Masuk'||t.jenis==='Transfer Masuk') jc='tx-masuk'; else if (t.jenis==='Keluar'||t.jenis==='Transfer Keluar') jc='tx-keluar';
       var isTransfer = t.transferID?true:false; if (isTransfer) jc='tx-transfer';
+      var jenisLabel = (isTransfer ? '↔️ ' : '') + t.jenis;
       var ap = (t.jenis==='Masuk'||t.jenis==='Transfer Masuk')?'+':'-';
       html += '<tr><td style="text-align:center">';
-      html += '<button type="button" class="btn btn-xs" style="background:var(--accent);color:#fff;margin-right:4px;font-size:13px" onclick="openBankEditModal('+t.rowId+')" title="Edit">✏️</button>';
-      html += '<button type="button" class="btn btn-xs btn-danger" style="font-size:13px" onclick="confirmBankDelete('+t.rowId+')" title="Padam">🗑️</button>';
+      html += '<button type="button" class="btn btn-xs" style="background:var(--accent);color:#fff;margin-right:4px;font-size:13px" data-action="edit" data-row-id="'+t.rowId+'" title="Edit">✏️</button>';
+      html += '<button type="button" class="btn btn-xs btn-danger" style="font-size:13px" data-action="delete" data-row-id="'+t.rowId+'" title="Padam">🗑️</button>';
       html += '</td><td style="font-weight:700;font-size:12px">'+escapeHtml(t.date)+'</td>';
-      html += '<td style="text-align:center"><span class="'+jc+'" style="font-size:11px">'+escapeHtml(t.jenis)+'</span></td>';
+      html += '<td style="text-align:center"><span class="'+jc+'" style="font-size:11px">'+escapeHtml(jenisLabel)+'</span></td>';
       html += '<td style="font-weight:600;font-size:12px">'+(escapeHtml(t.category)||'-')+'</td>';
       html += '<td style="font-size:12px;color:var(--text-muted)">'+(escapeHtml(t.note)||'-')+'</td>';
       html += '<td style="text-align:right;font-weight:700" class="'+jc+'">'+ap+'RM '+fRM(t.amount)+'</td>';
       html += '<td style="text-align:right;font-weight:700;color:'+(t.baki>=0?'var(--success)':'var(--danger)')+'">RM '+fRM(t.baki)+'</td></tr>';
     });
     tbody.innerHTML = html;
+    bindBankTableActions(tbody);
   }
 
   renderPagination('bank', totalRows, totalPages);
@@ -8157,7 +8170,17 @@ function loadAllTransactions(resetPage) {
       showLoader(false);
     })
     .withFailureHandler(function(e) { if (token !== allTxLoadToken) return; showLoader(false); showToast('Error: '+e.message,'error'); })
-    .getTransactionsPage(bank, m, y, date, search, currentAllTxPage, PAGE_SIZE);
+    .getTransactionsPage(bank, m, y, date, search, currentAllTxPage, PAGE_SIZE, allTxSortConfig.key, allTxSortConfig.direction);
+}
+
+function bindBankTableActions(tbody) {
+  tbody.querySelectorAll('button[data-action][data-row-id]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var rowId = parseInt(this.dataset.rowId, 10);
+      if (this.dataset.action === 'edit') openBankEditModal(rowId);
+      else if (this.dataset.action === 'delete') confirmBankDelete(rowId);
+    });
+  });
 }
 
 function editAllTx(rowId) {
@@ -8202,19 +8225,21 @@ function renderAllTxTable() {
     var html = '';
     pageData.forEach(function(t) {
       var jc = ''; if (t.jenis==='Masuk'||t.jenis==='Transfer Masuk') jc='tx-masuk'; else if (t.jenis==='Keluar'||t.jenis==='Transfer Keluar') jc='tx-keluar'; if (t.transferID) jc='tx-transfer';
+      var jenisLabel = (t.transferID ? '↔️ ' : '') + t.jenis;
       var ap = (t.jenis==='Masuk'||t.jenis==='Transfer Masuk')?'+':'-';
       html += '<tr><td style="text-align:center">';
-      html += '<button type="button" class="btn btn-xs" style="background:var(--accent);color:#fff;margin-right:4px;font-size:13px" onclick="editAllTx('+t.rowId+')" title="Edit">✏️</button>';
-      html += '<button type="button" class="btn btn-xs btn-danger" style="font-size:13px" onclick="deleteAllTx('+t.rowId+')" title="Padam">🗑️</button>';
+      html += '<button type="button" class="btn btn-xs" style="background:var(--accent);color:#fff;margin-right:4px;font-size:13px" data-action="edit" data-row-id="'+t.rowId+'" title="Edit">✏️</button>';
+      html += '<button type="button" class="btn btn-xs btn-danger" style="font-size:13px" data-action="delete" data-row-id="'+t.rowId+'" title="Padam">🗑️</button>';
       html += '</td><td style="font-weight:700;font-size:12px">'+escapeHtml(t.date)+'</td>';
       html += '<td style="font-size:11px;font-weight:600">'+getBankIconHtml(t.bank,18)+' '+escapeHtml(t.bank)+'</td>';
-      html += '<td style="text-align:center"><span class="'+jc+'" style="font-size:11px">'+escapeHtml(t.jenis)+'</span></td>';
+      html += '<td style="text-align:center"><span class="'+jc+'" style="font-size:11px">'+escapeHtml(jenisLabel)+'</span></td>';
       html += '<td style="font-weight:600;font-size:12px">'+(escapeHtml(t.category)||'-')+'</td>';
       html += '<td style="font-size:12px;color:var(--text-muted)">'+(escapeHtml(t.note)||'-')+'</td>';
       html += '<td style="text-align:right;font-weight:700" class="'+jc+'">'+ap+'RM '+fRM(t.amount)+'</td>';
       html += '<td style="text-align:right;font-weight:700;color:'+(t.baki>=0?'var(--success)':'var(--danger)')+'">RM '+fRM(t.baki)+'</td></tr>';
     });
     tbody.innerHTML = html;
+    bindAllTxTableActions(tbody);
   }
 
   renderPagination('allTx', totalRows, totalPages);
@@ -8224,6 +8249,31 @@ function renderAllTxTable() {
 function goToAllTxPage(page) {
   currentAllTxPage = page;
   loadAllTransactions(false);
+}
+
+function handleAllTxSort(key) {
+  if (allTxSortConfig.key === key) allTxSortConfig.direction = allTxSortConfig.direction === 'asc' ? 'desc' : 'asc';
+  else { allTxSortConfig.key = key; allTxSortConfig.direction = key === 'date' ? 'desc' : 'asc'; }
+  currentAllTxPage = 1;
+  updateAllTxSortIndicators();
+  loadAllTransactions(false);
+}
+
+function updateAllTxSortIndicators() {
+  ['date','bank','jenis','category','note','amount','baki'].forEach(function(kn) {
+    var e = document.getElementById('alltx-sort-' + kn);
+    if (e) e.innerHTML = allTxSortConfig.key === kn ? (allTxSortConfig.direction === 'asc' ? '↑' : '↓') : '↕';
+  });
+}
+
+function bindAllTxTableActions(tbody) {
+  tbody.querySelectorAll('button[data-action][data-row-id]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var rowId = parseInt(this.dataset.rowId, 10);
+      if (this.dataset.action === 'edit') editAllTx(rowId);
+      else if (this.dataset.action === 'delete') deleteAllTx(rowId);
+    });
+  });
 }
 
 // ============================================================
@@ -8343,7 +8393,7 @@ function applyBankSort() {
     var va=a[k],vb=b[k]; if(k==='date'){va=new Date(va);vb=new Date(vb);}else if(k==='amount'||k==='baki'){va=parseFloat(va)||0;vb=parseFloat(vb)||0;}else{va=(va||'').toString().toLowerCase();vb=(vb||'').toString().toLowerCase();}
     if(va<vb)return d==='asc'?-1:1; if(va>vb)return d==='asc'?1:-1; return (a.rowId||0)-(b.rowId||0);
   });
-  ['date','jenis','category','note','amount','baki'].forEach(function(kn){var e=document.getElementById('bank-sort-'+kn);if(e)e.innerHTML=(k===kn?(d==='asc'?'▲':'▼'):'');});
+  ['date','jenis','category','note','amount','baki'].forEach(function(kn){var e=document.getElementById('bank-sort-'+kn);if(e)e.innerHTML=(k===kn?(d==='asc'?'↑':'↓'):'↕');});
   currentBankPage = 1;
   renderBankTable();
 }
@@ -8461,13 +8511,34 @@ function confirmDelete(rowId,jenis,amount,isTransfer,bank,source,tx) {
   pendingDeleteId=rowId;pendingDeleteIsTransfer=isTransfer;pendingDeleteBank=bank;
   pendingDeleteSource=source||'bank';
   pendingDeleteTx=tx||null;
+  pendingConfirmAction='transaction';pendingConfirmPayload=null;
+  configureConfirmModal('🗑️', 'Padam Rekod?', 'Tindakan ini tidak boleh dikembalikan.', 'Padam', true);
   document.getElementById('deleteModalDetail').innerText=jenis+' — RM '+amount+' ('+bank+')';
   var to=document.getElementById('deleteTransferOption'); if(isTransfer)to.classList.remove('hidden');else to.classList.add('hidden');
   document.getElementById('deleteTransferPair').checked=true; openModal('deleteModal');
 }
-function closeDeleteModal() { closeModal('deleteModal'); pendingDeleteId=null;pendingDeleteIsTransfer=false;pendingDeleteBank='';pendingDeleteSource='bank';pendingDeleteTx=null; }
+
+function configureConfirmModal(icon, title, message, confirmText, isDanger) {
+  document.getElementById('deleteModalIcon').innerText = icon;
+  document.getElementById('deleteModalTitle').innerText = title;
+  document.getElementById('deleteModalMessage').innerText = message;
+  var btn = document.getElementById('deleteConfirmBtn');
+  delete btn.dataset.originalText;
+  btn.innerText = confirmText;
+  btn.className = 'btn flex-grow-1 ' + (isDanger ? 'btn-danger' : 'btn-primary');
+}
+
+function closeDeleteModal() {
+  closeModal('deleteModal');
+  pendingDeleteId=null;pendingDeleteIsTransfer=false;pendingDeleteBank='';pendingDeleteSource='bank';pendingDeleteTx=null;
+  pendingConfirmAction='transaction';pendingConfirmPayload=null;
+}
+
 function executeDelete() {
   if (submitting.delete) return;
+  if (pendingConfirmAction === 'category') return executeDeleteCategory();
+  if (pendingConfirmAction === 'bank') return executeDeleteBank();
+  if (pendingConfirmAction === 'rename-bank') return executeRenameBank();
   if(!pendingDeleteId)return; var dp=pendingDeleteIsTransfer&&document.getElementById('deleteTransferPair').checked;
   var source=pendingDeleteSource;
   var deleteBtn = document.getElementById('deleteConfirmBtn');
@@ -8498,6 +8569,73 @@ function executeDelete() {
     .deleteTransaction(pendingDeleteId,dp,expected);
 }
 
+function executeDeleteCategory() {
+  var p = pendingConfirmPayload || {};
+  var btn = document.getElementById('deleteConfirmBtn');
+  submitting.delete = true;
+  setButtonBusy(btn, true, 'Memadam...');
+  google.script.run
+    .withSuccessHandler(function(r) {
+      submitting.delete = false;
+      setButtonBusy(btn, false);
+      closeDeleteModal();
+      showToast(r.message, 'success');
+      loadSettingsCategories();
+    })
+    .withFailureHandler(function(e) {
+      submitting.delete = false;
+      setButtonBusy(btn, false);
+      closeDeleteModal();
+      showToast(e.message, 'error');
+    })
+    .deleteCategory(p.type, p.name);
+}
+
+function executeDeleteBank() {
+  var p = pendingConfirmPayload || {};
+  var btn = document.getElementById('deleteConfirmBtn');
+  submitting.delete = true;
+  setButtonBusy(btn, true, 'Memadam...');
+  google.script.run
+    .withSuccessHandler(function(r) {
+      submitting.delete = false;
+      setButtonBusy(btn, false);
+      closeDeleteModal();
+      showToast(r.message, 'success');
+      loadAllData();
+    })
+    .withFailureHandler(function(e) {
+      submitting.delete = false;
+      setButtonBusy(btn, false);
+      closeDeleteModal();
+      showToast(e.message, 'error');
+    })
+    .deleteBank(p.bankName);
+}
+
+function executeRenameBank() {
+  var p = pendingConfirmPayload || {};
+  var btn = document.getElementById('deleteConfirmBtn');
+  submitting.delete = true;
+  setButtonBusy(btn, true, 'Menukar...');
+  google.script.run
+    .withSuccessHandler(function(r) {
+      submitting.delete = false;
+      setButtonBusy(btn, false);
+      closeDeleteModal();
+      showToast(r.message, 'success');
+      if (activeBank === p.oldName) activeBank = p.newName;
+      loadAllData();
+    })
+    .withFailureHandler(function(e) {
+      submitting.delete = false;
+      setButtonBusy(btn, false);
+      closeDeleteModal();
+      showToast(e.message, 'error');
+    })
+    .updateBankLabel(p.oldName, p.newName, p.newIcon);
+}
+
 // ============================================================
 //   BULK
 // ============================================================
@@ -8517,8 +8655,12 @@ function addBulkRow() {
   h+='<select id="bulkCategory_'+idx+'" style="min-width:140px"></select>';
   h+='<input type="number" id="bulkAmount_'+idx+'" step="0.01" placeholder="Amaun" style="width:120px">';
   h+='<input type="text" id="bulkNote_'+idx+'" placeholder="Nota" style="flex:1;min-width:100px">';
-  h+='<button type="button" class="btn btn-xs btn-danger" onclick="this.closest(\'.bulk-row\').remove()" style="font-size:16px;line-height:1">&times;</button></div>';
-  c.insertAdjacentHTML('beforeend',h); updateBulkCategories(idx);
+  h+='<button type="button" class="btn btn-xs btn-danger" data-action="remove-bulk-row" style="font-size:16px;line-height:1">&times;</button></div>';
+  c.insertAdjacentHTML('beforeend',h);
+  var row = c.lastElementChild;
+  var removeBtn = row ? row.querySelector('button[data-action="remove-bulk-row"]') : null;
+  if (removeBtn) removeBtn.addEventListener('click', function() { this.closest('.bulk-row').remove(); });
+  updateBulkCategories(idx);
 }
 function onBulkJenisChange(idx){updateBulkCategories(idx);}
 function updateBulkCategories(idx) {
@@ -8645,7 +8787,7 @@ function renderChartBakiTrendChart(data) {
 
 function renderChartPieMasuk(data) {
   var ctx=document.getElementById('chartPieMasuk');if(!ctx)return;if(chartPieMasuk)chartPieMasuk.destroy();
-  var catTotals={}; if(data.summary&&data.summary.banks){for(var bank in data.summary.banks){var bd=data.summary.banks[bank];if(bd.categoryTotals){for(var cat in bd.categoryTotals){if(!catTotals[cat])catTotals[cat]=0;catTotals[cat]+=bd.categoryTotals[cat];}}}}
+  var catTotals={}; if(data.summary&&data.summary.banks){for(var bank in data.summary.banks){var bd=data.summary.banks[bank];var totals=bd.categoryTotalsMasuk||{};for(var cat in totals){if(!catTotals[cat])catTotals[cat]=0;catTotals[cat]+=totals[cat];}}}
   var mn=categoriesMasuk.map(function(c){return c.name;}),fl=[],fd=[];
   for(var cat in catTotals){if(mn.indexOf(cat)!==-1){fl.push(cat);fd.push(catTotals[cat]);}}
   if(fl.length===0){fl=['Tiada Data'];fd=[1];}
@@ -8657,7 +8799,7 @@ function renderChartPieMasuk(data) {
 
 function renderChartPieKeluar(data) {
   var ctx=document.getElementById('chartPieKeluar');if(!ctx)return;if(chartPieKeluar)chartPieKeluar.destroy();
-  var catTotals={}; if(data.summary&&data.summary.banks){for(var bank in data.summary.banks){var bd=data.summary.banks[bank];if(bd.categoryTotals){for(var cat in bd.categoryTotals){if(!catTotals[cat])catTotals[cat]=0;catTotals[cat]+=bd.categoryTotals[cat];}}}}
+  var catTotals={}; if(data.summary&&data.summary.banks){for(var bank in data.summary.banks){var bd=data.summary.banks[bank];var totals=bd.categoryTotalsKeluar||{};for(var cat in totals){if(!catTotals[cat])catTotals[cat]=0;catTotals[cat]+=totals[cat];}}}
   var kn=categoriesKeluar.map(function(c){return c.name;}),fl=[],fd=[];
   for(var cat in catTotals){if(kn.indexOf(cat)!==-1){fl.push(cat);fd.push(catTotals[cat]);}}
   if(fl.length===0){fl=['Tiada Data'];fd=[1];}
@@ -8734,10 +8876,13 @@ function renderKategoriList() {
     html += '<div class="settings-list-item">';
     html += '<span class="item-icon">' + escapeHtml(cat.icon || '📋') + '</span>';
     html += '<span class="item-name">' + escapeHtml(cat.name) + '</span>';
-    html += '<button class="btn btn-xs btn-danger" onclick="handleDeleteCategory(\'' + type + '\',\'' + escapeHtml(escJs(cat.name)) + '\')" style="font-size:13px">🗑️</button>';
+    html += '<button class="btn btn-xs btn-danger" data-type="' + type + '" data-category="' + escapeHtml(cat.name) + '" style="font-size:13px">🗑️</button>';
     html += '</div>';
   });
   container.innerHTML = html;
+  container.querySelectorAll('button[data-type][data-category]').forEach(function(btn) {
+    btn.addEventListener('click', function() { handleDeleteCategory(this.dataset.type, this.dataset.category); });
+  });
 }
 
 function handleAddCategory() {
@@ -8768,17 +8913,12 @@ function handleAddCategory() {
 }
 
 function handleDeleteCategory(type, name) {
-  if (!confirm('Padam kategori ' + name + '?')) return;
-
-  google.script.run
-    .withSuccessHandler(function(r) {
-      showToast(r.message, 'success');
-      loadSettingsCategories();
-    })
-    .withFailureHandler(function(e) {
-      showToast(e.message, 'error');
-    })
-    .deleteCategory(type, name);
+  pendingConfirmAction = 'category';
+  pendingConfirmPayload = { type: type, name: name };
+  configureConfirmModal('🗑️', 'Padam Kategori?', 'Kategori yang sedang digunakan tidak akan boleh dipadam.', 'Padam', true);
+  document.getElementById('deleteModalDetail').innerText = name;
+  document.getElementById('deleteTransferOption').classList.add('hidden');
+  openModal('deleteModal');
 }
 
 function loadSettingsBanks() {
@@ -8798,11 +8938,17 @@ function loadSettingsBanks() {
         html += getBankIconHtml(bank, 24);
         html += '<input type="text" id="bankEditName_' + safeId + '" value="' + escapeHtml(bank) + '" style="flex:1;min-width:100px;margin-left:8px">';
         html += '<input type="text" id="bankEditIcon_' + safeId + '" value="' + escapeHtml(bankIcon) + '" maxlength="4" style="width:60px" placeholder="Ikon">';
-        html += '<button class="btn btn-sm" onclick="handleRenameBank(\'' + escapeHtml(escJs(bank)) + '\',\'' + safeId + '\')" style="background:var(--accent);color:#fff;font-size:10px">💾</button>';
-        html += '<button class="btn btn-xs btn-danger" onclick="handleDeleteBank(\'' + escapeHtml(escJs(bank)) + '\')" style="font-size:13px">🗑️</button>';
+        html += '<button class="btn btn-sm" data-action="rename-bank" data-bank="' + escapeHtml(bank) + '" data-safe-id="' + safeId + '" style="background:var(--accent);color:#fff;font-size:10px">💾</button>';
+        html += '<button class="btn btn-xs btn-danger" data-action="delete-bank" data-bank="' + escapeHtml(bank) + '" style="font-size:13px">🗑️</button>';
         html += '</div>';
       });
       container.innerHTML = html;
+      container.querySelectorAll('button[data-action="rename-bank"]').forEach(function(btn) {
+        btn.addEventListener('click', function() { handleRenameBank(this.dataset.bank, this.dataset.safeId); });
+      });
+      container.querySelectorAll('button[data-action="delete-bank"]').forEach(function(btn) {
+        btn.addEventListener('click', function() { handleDeleteBank(this.dataset.bank); });
+      });
     })
     .withFailureHandler(function(e) {
       showToast('Error: ' + e.message, 'error');
@@ -8818,8 +8964,6 @@ function handleRenameBank(oldName, safeId) {
   if (!newName) { showToast('Nama bank diperlukan', 'error'); return; }
 
   if (newName === oldName) {
-    // Only icon changed
-    if (newIcon === '') return;
     google.script.run
       .withSuccessHandler(function(r) {
         showToast(r.message, 'success');
@@ -8830,18 +8974,12 @@ function handleRenameBank(oldName, safeId) {
       })
       .updateBankIcon(oldName, newIcon);
   } else {
-    // Name changed (possibly icon too)
-    if (!confirm('Tukar nama bank dari "' + oldName + '" ke "' + newName + '"? Semua transaksi akan dikemaskini.')) return;
-    google.script.run
-      .withSuccessHandler(function(r) {
-        showToast(r.message, 'success');
-        if (activeBank === oldName) activeBank = newName;
-        loadAllData();
-      })
-      .withFailureHandler(function(e) {
-        showToast(e.message, 'error');
-      })
-      .updateBankLabel(oldName, newName, newIcon);
+    pendingConfirmAction = 'rename-bank';
+    pendingConfirmPayload = { oldName: oldName, newName: newName, newIcon: newIcon };
+    configureConfirmModal('✏️', 'Tukar Nama Bank?', 'Semua transaksi bank ini akan dikemaskini kepada nama baru.', 'Tukar', false);
+    document.getElementById('deleteModalDetail').innerText = oldName + ' → ' + newName;
+    document.getElementById('deleteTransferOption').classList.add('hidden');
+    openModal('deleteModal');
   }
 }
 
@@ -8876,17 +9014,12 @@ function handleAddBank() {
 }
 
 function handleDeleteBank(bankName) {
-  if (!confirm('Padam bank "' + bankName + '"? Bank tanpa transaksi sahaja boleh dipadam.')) return;
-
-  google.script.run
-    .withSuccessHandler(function(r) {
-      showToast(r.message, 'success');
-      loadAllData();
-    })
-    .withFailureHandler(function(e) {
-      showToast(e.message, 'error');
-    })
-    .deleteBank(bankName);
+  pendingConfirmAction = 'bank';
+  pendingConfirmPayload = { bankName: bankName };
+  configureConfirmModal('🗑️', 'Padam Bank?', 'Bank hanya boleh dipadam jika tiada transaksi.', 'Padam', true);
+  document.getElementById('deleteModalDetail').innerText = bankName;
+  document.getElementById('deleteTransferOption').classList.add('hidden');
+  openModal('deleteModal');
 }
 
 document.addEventListener('keydown',function(e){if(e.key==='Escape'){closeModal('txModal');closeModal('transferModal');closeDeleteModal();}});

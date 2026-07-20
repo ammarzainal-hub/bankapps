@@ -120,6 +120,12 @@ function formatRowDate(cell) {
   return cell instanceof Date ? Utilities.formatDate(cell, 'GMT+8', 'yyyy-MM-dd') : String(cell || '');
 }
 
+function parseDateParts(dateStr) {
+  var m = String(dateStr || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  return { year: parseInt(m[1], 10), month: parseInt(m[2], 10), day: parseInt(m[3], 10) };
+}
+
 function rowMatchesExpected(row, expected) {
   if (!expected) return true;
   var rowDate = formatRowDate(row[0]);
@@ -340,8 +346,9 @@ function updateBankLabelCore(oldName, newName, newIcon) {
   }
 
   var configSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CONFIG_SHEET);
+  if (!configSheet) return { status: 'error', message: 'Tab KONFIG tidak dijumpai' };
   var newBankList = config.bankList.map(function(b) { return b === oldName ? safeNewName : b; });
-  var usedIcon = (newIcon !== undefined && newIcon !== '') ? newIcon : (config.icons[oldName] || '');
+  var usedIcon = newIcon !== undefined ? sanitize(newIcon, 10) : (config.icons[oldName] || '');
 
   var rows = [['BankList', newBankList.join(', '), '']];
   newBankList.forEach(function(b) {
@@ -386,6 +393,7 @@ function updateBankIconCore(bankName, icon) {
   }
 
   var configSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CONFIG_SHEET);
+  if (!configSheet) return { status: 'error', message: 'Tab KONFIG tidak dijumpai' };
   var lastRow = configSheet.getLastRow();
   if (lastRow >= 2) {
     var keys = configSheet.getRange(2, 1, lastRow - 1, 1).getValues();
@@ -423,6 +431,7 @@ function deleteBankCore(bankName) {
   });
 
   var configSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CONFIG_SHEET);
+  if (!configSheet) return { status: 'error', message: 'Tab KONFIG tidak dijumpai' };
   var lastRow = configSheet.getLastRow();
   if (lastRow >= 2) configSheet.getRange(2, 1, lastRow - 1, 3).clearContent();
   if (rows.length > 0) configSheet.getRange(2, 1, rows.length, 3).setValues(rows);
@@ -461,20 +470,21 @@ function getTransactions(month, year, bank, jenis, day) {
       })
       .filter(function(item) {
         if (!item.date) return false;
-        var d = new Date(item.date);
-        if (isNaN(d)) return false;
+        var dateParts = parseDateParts(item.date);
+        if (!dateParts) return false;
         if (bank && item.bank !== bank) return false;
-        if (year && d.getFullYear() != year) return false;
+        if (year && dateParts.year != year) return false;
         return true;
       })
       .sort(function(a, b) {
-        return new Date(a.date) - new Date(b.date) || a.rowId - b.rowId;
+        return a.date.localeCompare(b.date) || a.rowId - b.rowId;
       });
   }).filter(function(item) {
-    var d = new Date(item.date);
-    if (month && (d.getMonth() + 1) != month) return false;
+    var dateParts = parseDateParts(item.date);
+    if (!dateParts) return false;
+    if (month && dateParts.month != month) return false;
     if (jenis && item.jenis !== jenis) return false;
-    if (day && d.getDate() != parseInt(day)) return false;
+    if (day && dateParts.day != parseInt(day, 10)) return false;
     return true;
   });
 }
@@ -491,22 +501,42 @@ function getTransactionsPaginated(bank, month, year, day, page, pageSize) {
   return { transactions: transactions, total: total, page: page, pageSize: pageSize, totalPages: totalPages };
 }
 
-function getTransactionsPage(bank, month, year, exactDate, search, page, pageSize) {
+function getTransactionsPage(bank, month, year, exactDate, search, page, pageSize, sortKey, sortDirection) {
   pageSize = pageSize || PAGE_SIZE;
   page = page || 1;
   search = (search || '').toString().trim().toLowerCase();
+  var searchAmount = parseFloat(search.replace(/,/g, ''));
+  sortKey = ['date', 'bank', 'jenis', 'category', 'note', 'amount', 'baki'].indexOf(sortKey) !== -1 ? sortKey : 'date';
+  sortDirection = sortDirection === 'asc' ? 'asc' : 'desc';
 
   var allTx = getTransactions(month, year, bank)
     .filter(function(t) {
       if (exactDate && t.date !== exactDate) return false;
       if (search) {
         var haystack = [t.note, t.category, t.jenis, t.bank].join(' ').toLowerCase();
-        if (haystack.indexOf(search) === -1) return false;
+        var amountText = (parseFloat(t.amount) || 0).toFixed(2);
+        var amountCompact = amountText.replace(/\.00$/, '');
+        var amountMatches = !isNaN(searchAmount) && (
+          Math.abs((parseFloat(t.amount) || 0) - searchAmount) < 0.005 ||
+          amountText.indexOf(search) !== -1 ||
+          amountCompact.indexOf(search) !== -1
+        );
+        if (haystack.indexOf(search) === -1 && !amountMatches) return false;
       }
       return true;
     })
     .sort(function(a, b) {
-      return new Date(b.date) - new Date(a.date) || b.rowId - a.rowId;
+      var va = a[sortKey], vb = b[sortKey];
+      if (sortKey === 'amount' || sortKey === 'baki') {
+        va = parseFloat(va) || 0;
+        vb = parseFloat(vb) || 0;
+      } else {
+        va = (va || '').toString().toLowerCase();
+        vb = (vb || '').toString().toLowerCase();
+      }
+      if (va < vb) return sortDirection === 'asc' ? -1 : 1;
+      if (va > vb) return sortDirection === 'asc' ? 1 : -1;
+      return sortDirection === 'asc' ? (a.rowId || 0) - (b.rowId || 0) : (b.rowId || 0) - (a.rowId || 0);
     });
 
   var total = allTx.length;
@@ -539,13 +569,12 @@ function getAllTransactions(bank) {
     })
     .filter(function(item) {
       if (!item.date) return false;
-      var d = new Date(item.date);
-      if (isNaN(d)) return false;
+      if (!parseDateParts(item.date)) return false;
       if (bank && item.bank !== bank) return false;
       return true;
     })
     .sort(function(a, b) {
-      return new Date(a.date) - new Date(b.date) || a.rowId - b.rowId;
+      return a.date.localeCompare(b.date) || a.rowId - b.rowId;
     });
 }
 
@@ -686,6 +715,7 @@ function updateTransactionCore(data) {
       sheet.getRange(pair.rowId, 1).setValue(safeDate);
       sheet.getRange(pair.rowId, 1).setNumberFormat('dd/MM/yyyy HH:mm:ss');
       sheet.getRange(pair.rowId, 5).setValue(safeAmount);
+      sheet.getRange(pair.rowId, 6).setValue(safeNote);
       if (pair.bank) banksToRecalc[pair.bank] = true;
     }
   }
@@ -902,9 +932,11 @@ function getBatchSummaryData(month, year) {
   bankList.forEach(function(bank) {
     var tx = getTransactions(month, year, bank);
     var totalMasuk = 0, totalKeluar = 0, totalTransferMasuk = 0, totalTransferKeluar = 0;
-    var categoryTotals = {};
+    var categoryTotals = {}, categoryTotalsMasuk = {}, categoryTotalsKeluar = {};
 
     tx.forEach(function(t) {
+      var isMasuk = t.jenis === 'Masuk' || t.jenis === 'Transfer Masuk';
+      var isKeluar = t.jenis === 'Keluar' || t.jenis === 'Transfer Keluar';
       if (t.jenis === 'Masuk') totalMasuk += t.amount;
       else if (t.jenis === 'Keluar') totalKeluar += t.amount;
       else if (t.jenis === 'Transfer Masuk') totalTransferMasuk += t.amount;
@@ -912,6 +944,13 @@ function getBatchSummaryData(month, year) {
 
       if (!categoryTotals[t.category]) categoryTotals[t.category] = 0;
       categoryTotals[t.category] += t.amount;
+      if (isMasuk) {
+        if (!categoryTotalsMasuk[t.category]) categoryTotalsMasuk[t.category] = 0;
+        categoryTotalsMasuk[t.category] += t.amount;
+      } else if (isKeluar) {
+        if (!categoryTotalsKeluar[t.category]) categoryTotalsKeluar[t.category] = 0;
+        categoryTotalsKeluar[t.category] += t.amount;
+      }
     });
 
     summary.banks[bank] = {
@@ -923,7 +962,9 @@ function getBatchSummaryData(month, year) {
       totalTransferMasuk: totalTransferMasuk,
       totalTransferKeluar: totalTransferKeluar,
       count: tx.length,
-      categoryTotals: categoryTotals
+      categoryTotals: categoryTotals,
+      categoryTotalsMasuk: categoryTotalsMasuk,
+      categoryTotalsKeluar: categoryTotalsKeluar
     };
 
     summary.grandTotalMasuk += summary.banks[bank].totalMasuk;
@@ -954,8 +995,9 @@ function getYearlyData(year, bank) {
   var data = { masuk: Array(12).fill(0), keluar: Array(12).fill(0) };
 
   tx.forEach(function(t) {
-    var d = new Date(t.date);
-    var monthIdx = d.getMonth();
+    var dateParts = parseDateParts(t.date);
+    if (!dateParts) return;
+    var monthIdx = dateParts.month - 1;
     var amount = parseFloat(t.amount) || 0;
     if (t.jenis === 'Masuk' || t.jenis === 'Transfer Masuk') data.masuk[monthIdx] += amount;
     else if (t.jenis === 'Keluar' || t.jenis === 'Transfer Keluar') data.keluar[monthIdx] += amount;
