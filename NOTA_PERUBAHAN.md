@@ -273,6 +273,30 @@ Cache akan dibersihkan bila:
 
 Butang refresh dalam app juga boleh membersihkan cache untuk view tertentu.
 
+## Duplicate Submit Protection
+
+App menggunakan `clientRequestId` untuk mengurangkan risiko transaksi tersimpan dua kali.
+
+Flow yang menghantar `clientRequestId`:
+
+- Tambah transaksi cepat.
+- Tambah transaksi melalui modal akaun bank.
+- Transfer dari halaman transfer.
+- Transfer dari modal akaun bank.
+- Rekod pukal.
+
+Cara kerja:
+
+- Frontend jana ID unik setiap kali user tekan simpan.
+- Backend semak ID tersebut dalam cache.
+- Jika request sama sampai kali kedua, backend pulangkan response lama dan tidak tambah row baru.
+- Cache ID request disimpan sementara selama 6 jam.
+
+Nota:
+
+- Transfer masih menghasilkan dua row secara sengaja.
+- Dua row transfer bukan duplicate, tetapi pasangan `Transfer Keluar` dan `Transfer Masuk`.
+
 ## Confirmation Modal
 
 Tindakan penting menggunakan popout/modal app yang sama.
@@ -311,6 +335,7 @@ Jadual semua transaksi sort di server supaya melibatkan semua hasil filter/searc
 3. Semak transaksi muncul dalam akaun bank.
 4. Semak transaksi muncul dalam semua transaksi.
 5. Semak baki berubah dengan betul.
+6. Tekan simpan beberapa kali dengan cepat dan pastikan row tidak berganda.
 
 ## Semak Tarikh
 

@@ -7688,6 +7688,9 @@ function todayLocal() {
   var d = new Date();
   return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
 }
+function createClientRequestId(prefix) {
+  return [prefix || 'req', Date.now(), Math.random().toString(36).slice(2, 10)].join('_');
+}
 function buildExpected(tx) {
   if (!tx) return null;
   return { date: tx.date, bank: tx.bank, amount: tx.amount, transferID: tx.transferID || '' };
@@ -8325,14 +8328,16 @@ function onQuickJenisChange() {
 function handleQuickTxSubmit() {
   if (submitting.quickTx) return;
   var submitBtn = document.querySelector('#quickTxForm button[type="submit"]');
-  var d = { rowId:null, date:document.getElementById('quickTxDate').value, bank:document.getElementById('quickTxBank').value, jenis:document.getElementById('quickTxJenis').value, category:document.getElementById('quickTxCategory').value, amount:parseFloat(document.getElementById('quickTxAmount').value), note:document.getElementById('quickTxNote').value, transferID:'' };
+  var d = { rowId:null, date:document.getElementById('quickTxDate').value, bank:document.getElementById('quickTxBank').value, jenis:document.getElementById('quickTxJenis').value, category:document.getElementById('quickTxCategory').value, amount:parseFloat(document.getElementById('quickTxAmount').value), note:document.getElementById('quickTxNote').value, transferID:'', clientRequestId:createClientRequestId('quick') };
   if (!d.amount||d.amount<=0) { showToast('Amaun mesti lebih dari 0','error'); return; }
   submitting.quickTx = true;
   setButtonBusy(submitBtn, true, 'Menyimpan...');
+  showLoader(true);
+  document.getElementById('loaderText').innerText = 'Menyimpan data...';
   var se = document.getElementById('quickTxStatus'); se.innerText='Menyimpan...'; se.style.color='var(--accent)';
   google.script.run
-    .withSuccessHandler(function(r) { submitting.quickTx=false; setButtonBusy(submitBtn,false); se.innerText='✅ Transaksi berjaya ditambah'; se.style.color='var(--success)'; showToast('Transaksi berjaya ditambah','success'); document.getElementById('quickTxAmount').value='';document.getElementById('quickTxNote').value=''; refreshActiveView(); })
-    .withFailureHandler(function(e) { submitting.quickTx=false; setButtonBusy(submitBtn,false); se.innerText='❌ '+e.message; se.style.color='var(--danger)'; })
+    .withSuccessHandler(function(r) { submitting.quickTx=false; setButtonBusy(submitBtn,false); showLoader(false); se.innerText='✅ Transaksi berjaya ditambah'; se.style.color='var(--success)'; showToast('Transaksi berjaya ditambah','success'); document.getElementById('quickTxAmount').value='';document.getElementById('quickTxNote').value=''; refreshActiveView(); })
+    .withFailureHandler(function(e) { submitting.quickTx=false; setButtonBusy(submitBtn,false); showLoader(false); se.innerText='❌ '+e.message; se.style.color='var(--danger)'; })
     .addTransaction(d);
 }
 
@@ -8356,14 +8361,16 @@ function handleTransferPageSubmit() {
   var submitBtn = document.querySelector('#transferPageForm button[type="submit"]');
   var f = document.getElementById('transferPageFrom').value, t = document.getElementById('transferPageTo').value;
   if (f===t) { showToast('Bank sumber dan destinasi tidak boleh sama','error'); return; }
-  var d = { date:document.getElementById('transferPageDate').value, fromBank:f, toBank:t, amount:parseFloat(document.getElementById('transferPageAmount').value), note:document.getElementById('transferPageNote').value };
+  var d = { date:document.getElementById('transferPageDate').value, fromBank:f, toBank:t, amount:parseFloat(document.getElementById('transferPageAmount').value), note:document.getElementById('transferPageNote').value, clientRequestId:createClientRequestId('transfer') };
   if (!d.amount||d.amount<=0) { showToast('Amaun mesti lebih dari 0','error'); return; }
   submitting.transferPage = true;
   setButtonBusy(submitBtn, true, 'Memproses...');
+  showLoader(true);
+  document.getElementById('loaderText').innerText = 'Menyimpan data...';
   var se = document.getElementById('transferPageStatus'); se.innerText='Memproses...'; se.style.color='var(--accent)';
   google.script.run
-    .withSuccessHandler(function(r) { submitting.transferPage=false; setButtonBusy(submitBtn,false); se.innerText='✅ '+r.message; se.style.color='var(--success)'; document.getElementById('transferPageAmount').value='';document.getElementById('transferPageNote').value=''; refreshActiveView(); })
-    .withFailureHandler(function(e) { submitting.transferPage=false; setButtonBusy(submitBtn,false); se.innerText='❌ '+e.message; se.style.color='var(--danger)'; })
+    .withSuccessHandler(function(r) { submitting.transferPage=false; setButtonBusy(submitBtn,false); showLoader(false); se.innerText='✅ '+r.message; se.style.color='var(--success)'; document.getElementById('transferPageAmount').value='';document.getElementById('transferPageNote').value=''; refreshActiveView(); })
+    .withFailureHandler(function(e) { submitting.transferPage=false; setButtonBusy(submitBtn,false); showLoader(false); se.innerText='❌ '+e.message; se.style.color='var(--danger)'; })
     .addTransfer(d);
 }
 
@@ -8449,13 +8456,14 @@ function handleTxSubmit(form) {
   var submitBtn = form.querySelector('button[type="submit"]');
   var rowId = document.getElementById('txEditRowId').value;
   var d = { rowId: rowId?parseInt(rowId):null, date:document.getElementById('txFormDate').value, bank:document.getElementById('txFormBank').value, jenis:document.getElementById('txFormJenis').value, category:document.getElementById('txFormCategory').value, amount:parseFloat(document.getElementById('txFormAmount').value), note:document.getElementById('txFormNote').value, transferID:document.getElementById('txTransferID').value||'' };
+  if (!rowId) d.clientRequestId = createClientRequestId('tx');
   if (rowId && editingOriginalTx) {
     d.expected = buildExpected(editingOriginalTx);
   }
   if (!d.amount||d.amount<=0) { showToast('Amaun mesti lebih dari 0','error'); return; }
   submitting.tx = true;
   setButtonBusy(submitBtn, true, rowId ? 'Mengemaskini...' : 'Menyimpan...');
-  showLoader(true); var fn = rowId?'updateTransaction':'addTransaction';
+  showLoader(true); document.getElementById('loaderText').innerText = rowId ? 'Mengemaskini data...' : 'Menyimpan data...'; var fn = rowId?'updateTransaction':'addTransaction';
   google.script.run
     .withSuccessHandler(function(r) {
       submitting.tx = false;
@@ -8492,11 +8500,12 @@ function handleTransferSubmit(form) {
   var submitBtn = form.querySelector('button[type="submit"]');
   var f=document.getElementById('transferFromBank').value,t=document.getElementById('transferToBank').value;
   if(f===t){showToast('Bank sumber dan destinasi tidak boleh sama','error');return;}
-  var d={date:document.getElementById('transferFormDate').value,fromBank:f,toBank:t,amount:parseFloat(document.getElementById('transferFormAmount').value),note:document.getElementById('transferFormNote').value};
+  var d={date:document.getElementById('transferFormDate').value,fromBank:f,toBank:t,amount:parseFloat(document.getElementById('transferFormAmount').value),note:document.getElementById('transferFormNote').value,clientRequestId:createClientRequestId('transfer')};
   if(!d.amount||d.amount<=0){showToast('Amaun mesti lebih dari 0','error');return;}
   submitting.transferModal = true;
   setButtonBusy(submitBtn, true, 'Memproses...');
   showLoader(true);
+  document.getElementById('loaderText').innerText = 'Menyimpan data...';
   google.script.run
     .withSuccessHandler(function(r){submitting.transferModal=false;setButtonBusy(submitBtn,false);closeModal('transferModal');showToast(r.message,'success');refreshActiveView();})
     .withFailureHandler(function(e){submitting.transferModal=false;setButtonBusy(submitBtn,false);showLoader(false);showToast('Error: '+e.message,'error');})
@@ -8673,6 +8682,7 @@ function submitBulkData() {
   var bulkBtn = document.querySelector('#page-bulk .btn.btn-primary');
   var c=document.getElementById('bulkRowsContainer'),rows=[];
   var rowEls=c.querySelectorAll('.bulk-row');
+  var clientRequestId = createClientRequestId('bulk');
   for(var i=0;i<rowEls.length;i++){
     var el=rowEls[i];
     var amount=parseFloat((el.querySelector('input[type=number]')||{value:''}).value);
@@ -8686,13 +8696,15 @@ function submitBulkData() {
       category:el.querySelector('select[id^="bulkCategory_"]').value,
       amount:amount,
       note:el.querySelector('input[type=text]').value,
-      transferID:''
+      transferID:'',
+      clientRequestId:clientRequestId
     });
   }
   if(rows.length===0){showToast('Tiada data untuk disimpan','error');return;}
   submitting.bulk = true;
   setButtonBusy(bulkBtn, true, 'Menyimpan...');
   showLoader(true);
+  document.getElementById('loaderText').innerText = 'Menyimpan data...';
   google.script.run
     .withSuccessHandler(function(r){submitting.bulk=false;setButtonBusy(bulkBtn,false);showLoader(false);showToast('Transaksi berjaya ditambah','success');initBulkPage();})
     .withFailureHandler(function(e){submitting.bulk=false;setButtonBusy(bulkBtn,false);showLoader(false);showToast('Error: '+e.message,'error');})

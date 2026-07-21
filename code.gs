@@ -7,6 +7,7 @@ const KATEGORI_MASUK_SHEET = 'KATEGORI_MASUK';
 const KATEGORI_KELUAR_SHEET = 'KATEGORI_KELUAR';
 const CONFIG_SHEET         = 'KONFIG';
 const CACHE_TTL            = 7200;
+const REQUEST_CACHE_TTL    = 21600;
 const PAGE_SIZE            = 25;
 const MIN_YEAR             = 2026;
 const MAX_YEAR             = 2035;
@@ -118,6 +119,29 @@ function withLock(fn) {
 
 function formatRowDate(cell) {
   return cell instanceof Date ? Utilities.formatDate(cell, 'GMT+8', 'yyyy-MM-dd') : String(cell || '');
+}
+
+function getRequestCacheKey(type, requestId) {
+  var safeId = sanitize(requestId, 120);
+  if (!safeId) return '';
+  return 'req_' + type + '_' + safeId;
+}
+
+function getProcessedRequest(cacheKey) {
+  if (!cacheKey) return null;
+  try {
+    var cached = CacheService.getScriptCache().get(cacheKey);
+    return cached ? JSON.parse(cached) : null;
+  } catch(e) {
+    return null;
+  }
+}
+
+function markProcessedRequest(cacheKey, response) {
+  if (!cacheKey) return;
+  try {
+    CacheService.getScriptCache().put(cacheKey, JSON.stringify(response), REQUEST_CACHE_TTL);
+  } catch(e) {}
 }
 
 function parseDateParts(dateStr) {
@@ -625,6 +649,9 @@ function addTransactionCore(data) {
   var safeAmount = parseFloat(data.amount);
   var safeNote = sanitize(data.note, 500);
   var safeTransferID = sanitize(data.transferID, 100);
+  var requestKey = getRequestCacheKey('tx', data.clientRequestId);
+  var previousResponse = getProcessedRequest(requestKey);
+  if (previousResponse) return previousResponse;
 
   var sheet = getSheetOrThrow(DATA_SHEET);
   sheet.appendRow([safeDate, safeBank, safeJenis, safeCategory, safeAmount, safeNote, safeTransferID, 0]);
@@ -632,7 +659,9 @@ function addTransactionCore(data) {
 
   recalculateBalances(safeBank);
   invalidateCache(safeBank);
-  return { status: 'success', message: 'Transaksi berjaya ditambah' };
+  var response = { status: 'success', message: 'Transaksi berjaya ditambah' };
+  markProcessedRequest(requestKey, response);
+  return response;
 }
 
 function addTransfer(data) {
@@ -650,6 +679,9 @@ function addTransfer(data) {
     var safeToBank = sanitize(data.toBank, 50);
     var safeAmount = parseFloat(data.amount);
     var safeNote = sanitize(data.note, 500);
+    var requestKey = getRequestCacheKey('transfer', data.clientRequestId);
+    var previousResponse = getProcessedRequest(requestKey);
+    if (previousResponse) return previousResponse;
     var rows = [
       [safeDate, safeFromBank, 'Transfer Keluar', 'Transfer', safeAmount, safeNote || ('Transfer ke ' + safeToBank), transferID, 0],
       [safeDate, safeToBank, 'Transfer Masuk', 'Transfer', safeAmount, safeNote || ('Transfer dari ' + safeFromBank), transferID, 0]
@@ -663,7 +695,9 @@ function addTransfer(data) {
     invalidateCache(safeFromBank);
     invalidateCache(safeToBank);
 
-    return { status: 'success', message: 'Transfer berjaya direkodkan' };
+    var response = { status: 'success', message: 'Transfer berjaya direkodkan' };
+    markProcessedRequest(requestKey, response);
+    return response;
   });
 }
 
@@ -814,6 +848,9 @@ function addBulkTransactions(rows) {
     var sheet = getSheetOrThrow(DATA_SHEET);
     var banksToRecalc = {};
     var toAppend = [];
+    var requestKey = getRequestCacheKey('bulk', rows.clientRequestId || (rows[0] && rows[0].clientRequestId));
+    var previousResponse = getProcessedRequest(requestKey);
+    if (previousResponse) return previousResponse;
 
     for (var i = 0; i < rows.length; i++) {
       var r = rows[i];
@@ -845,7 +882,9 @@ function addBulkTransactions(rows) {
     recalculateBalancesMulti(bankNames);
     bankNames.forEach(function(bank) { invalidateCache(bank); });
 
-    return { status: 'success', message: rows.length + ' transaksi berjaya ditambah' };
+    var response = { status: 'success', message: rows.length + ' transaksi berjaya ditambah' };
+    markProcessedRequest(requestKey, response);
+    return response;
   });
 }
 
